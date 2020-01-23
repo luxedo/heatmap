@@ -1,0 +1,26 @@
+{
+  "name": "@luxedo/heatmap",
+  "version": "1.0.0",
+  "description": "Heatmap drawing tool",
+  "main": "index.js",
+  "dependencies": {
+    "canvas": "^2.6.1",
+    "hsluv": "^0.1.0",
+    "yargs": "^15.1.0"
+  },
+  "devDependencies": {
+    "chai": "^4.2.0"
+  },
+  "scripts": {
+    "test": "mocha --reporter list"
+  },
+  "keywords": [
+    "heatmap",
+    "image"
+  ],
+  "author": "Luiz Eduardo Amaral",
+  "license": "GPL-3.0",
+  "directories": {
+    "test": "test"
+  }
+}

@@ -1,0 +1,57 @@
+#!/usr/bin/env node
+
+/*  
+    @luxedo/heatmap - Creates heatmaps from latitude and longitude data 
+    Copyright (C) 2020 Luiz Eduardo Amaral 
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+*/
+const fs = require('fs')
+const heatmap = require('@luxedo/heatmap')
+const args = require('yargs')
+  .scriptName("heatmap")
+  .usage('Usage: $0 -i input_file -o output_file\n       $0 [-] file')
+  .argv
+const accumulatorMap = {
+  'gaussianAddAccumulator': heatmap.gaussianAddAccumulator,
+  'linearAddAccumulator': heatmap.linearAddAccumulator,
+}
+
+const main = (() => {
+  let data;
+  let out = "file"
+  if (args.hasOwnProperty("o") || args.hasOwnProperty("i")) {
+    if (!(args.hasOwnProperty("o") && args.hasOwnProperty("i")))
+      throw Error("You must provide both -i (input_file) and -o (output_file)")
+    data = JSON.parse(fs.readFileSync(args.i).toString())
+  } else {
+    data = JSON.parse(fs.readFileSync(0, 'utf-8'))
+    out = "stdout"
+  }
+  const fnArgs = [
+    data.coords, 
+    data.points, 
+    data.colors || null, 
+    data.crop || null, 
+    data.pxPerDegree || null, 
+    data.width || null, 
+    data.height || null, 
+    accumulatorMap[data.accumulator] || null
+  ]
+  const {buf} =  heatmap.drawGeoHeatmap(...fnArgs)
+  if (out == "file") 
+    fs.writeFileSync(args.o, buf)
+  else 
+    process.stdout.write(buf.toString())
+})()
