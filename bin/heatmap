@@ -23,9 +23,15 @@ const args = require('yargs')
   .scriptName("heatmap")
   .usage('Usage: $0 -i input_file -o output_file\n       $0 [-] file')
   .argv
+const mapperMap = {
+  'gaussianMapper': heatmap.gaussianMapper,
+  'exponentialMapper': heatmap.exponentialMapper,
+  'inverseLinearMapper': heatmap.inverseLinearMapper,
+  'inverseSquaredMapper': heatmap.inverseSquaredMapper,
+  'stepMapper': heatmap.stepMapper,
+}
 const accumulatorMap = {
-  'gaussianAddAccumulator': heatmap.gaussianAddAccumulator,
-  'linearAddAccumulator': heatmap.linearAddAccumulator,
+  'addAccumulator': heatmap.addAccumulator
 }
 
 const main = (() => {
@@ -39,19 +45,23 @@ const main = (() => {
     data = JSON.parse(fs.readFileSync(0, 'utf-8'))
     out = "stdout"
   }
+  if (data.mapper != null && !(data.mapper in mapperMap)) throw Error(`Mapper "${data.mapper}" not found`)
+  if (data.accumulator != null && !(data.accumulator in accumulatorMap)) throw Error(`Accumulator "${data.accumulator}" not found`)
   const fnArgs = [
-    data.coords, 
-    data.points, 
-    data.colors || null, 
-    data.crop || null, 
-    data.pxPerDegree || null, 
-    data.width || null, 
-    data.height || null, 
-    accumulatorMap[data.accumulator] || null
+    data.coords,
+    data.points,
+    data.colors || null,
+    data.crop || null,
+    data.pxPerDegree || null,
+    data.width || null,
+    data.height || null,
+      mapperMap[data.mapper] || null
   ]
-  const {buf} =  heatmap.drawGeoHeatmap(...fnArgs)
-  if (out == "file") 
+  const {
+    buf
+  } = heatmap.drawGeoHeatmap(...fnArgs)
+  if (out == "file")
     fs.writeFileSync(args.o, buf)
-  else 
+  else
     process.stdout.write(buf.toString())
 })()

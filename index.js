@@ -24,7 +24,7 @@ const {
   rgbToHsluv
 } = require('hsluv')
 
-exports.drawGeoHeatmap = (coords, points, colors = null, crop = true, pxPerDegree = null, width = null, height = null, accumulator = null) => {
+exports.drawGeoHeatmap = (coords, points, colors = null, crop = true, pxPerDegree = null, width = null, height = null, mapper = null, accumulator = null) => {
   const {
     cCoords,
     cPoints,
@@ -33,13 +33,14 @@ exports.drawGeoHeatmap = (coords, points, colors = null, crop = true, pxPerDegre
     origin,
     end
   } = convertData(coords, points, pxPerDegree, width, height)
-  if (accumulator == null) accumulator = exports.gaussianAddAccumulator
+  if (mapper == null) mapper = exports.gaussianMapper
+  if (accumulator == null) accumulator = exports.addAccumulator
   if (colors == null) colors = {
     "steps": 200,
     "values": ["#FFFFFF", "#00FF00", "#FFFF00", "#FF0000"],
     "weights": [2, 3, 3, 2],
   }
-  const buf = exports.drawHeatmap(cPoints, cWidth, cHeight, colors, crop, cCoords, accumulator)
+  const buf = exports.drawHeatmap(cPoints, cWidth, cHeight, colors, crop, cCoords, mapper, accumulator)
   return {
     buf,
     origin,
@@ -47,9 +48,9 @@ exports.drawGeoHeatmap = (coords, points, colors = null, crop = true, pxPerDegre
   }
 }
 
-exports.drawHeatmap = (cPoints, width, height, colors, crop, cCoords, accumulator) => {
+exports.drawHeatmap = (cPoints, width, height, colors, crop, cCoords, mapper, accumulator) => {
   if (crop === true && !cCoords instanceof Array) throw new Error("You must provide a polygon in cCoords to crop")
-  const heatData = buildHeatData(cPoints, width, height, accumulator)
+  const heatData = buildHeatData(cPoints, width, height, mapper, accumulator)
   const canvas = createCanvas(width, height)
   drawHeatData(heatData, canvas, colors)
   if (crop) clipImg(canvas, cCoords)
@@ -105,53 +106,77 @@ function convertData(coords, points, pxPerDegree, width, height) {
   }
 }
 
-function buildHeatData(cPoints, width, height, accumulator) {
+function buildHeatData(cPoints, width, height, mapper, accumulator) {
   let heatData = []
   for (let y = 0; y < height; y++) {
     let row = []
     for (let x = 0; x < width; x++) {
-      let intensity = cPoints.reduce(accumulator, {
+      const intensities = cPoints.map(item => mapper(Object.assign({}, {
         x,
-        y,
-        value: 0
-      })
-      row.push(intensity.value)
+        y
+      }, item)))
+      const value = accumulator(intensities)
+      row.push(value)
     }
     heatData.push(row)
   }
   return heatData
 }
 
-exports.gaussianAddAccumulator = (acc, cur) => {
-  acc.value += cur.value * gaussian(acc.x, acc.y, cur.px, cur.py, cur.radius)
-  return acc
+exports.gaussianMapper = (item) => {
+  return item.value * gaussian(item.x, item.y, item.px, item.py, item.radius)
 }
 
-exports.linearAddAccumulator = (acc, cur) => {
-  acc.value += cur.value * linear(acc.x, acc.y, cur.px, cur.py, cur.radius)
-  return acc
+exports.exponentialMapper = (item) => {
+  return item.value * exponential(item.x, item.y, item.px, item.py, item.radius)
 }
 
-exports.gaussianWeightedMeanAccumulator = (acc, cur) => {
-  acc.value += cur.value * gaussian(acc.x, acc.y, cur.px, cur.py, cur.radius)
-  return acc
+exports.inverseLinearMapper = (item) => {
+  return item.radius * item.value / 5 / euclideanDistance(item.x, item.y, item.px, item.py)
+}
+
+exports.inverseSquaredMapper = (item) => {
+  return item.value * item.radius * 10 / euclideanDistanceSquared(item.x, item.y, item.px, item.py)
+}
+
+exports.stepMapper = (item) => {
+  return item.value * step(item.x, item.y, item.px, item.py, item.radius)
+}
+
+exports.addAccumulator = (intensities) => {
+  return intensities.reduce((acc, cur) => acc + cur, 0)
+}
+
+//exports.meanAccumulator = (intensities) => {
+exports.addAccumulator = (intensities) => {
+  return intensities.reduce((acc, cur) => acc + cur, 0) / intensities.length
 }
 
 function gaussian(x, y, px, py, sigma) {
-  return Math.exp(-1 / 2 * (
-    Math.pow(((x - px) / sigma), 2) +
-    Math.pow(((y - py) / sigma), 2))) || 0
+  return Math.exp(-euclideanDistanceSquared(x, y, px, py) / Math.pow(sigma, 2) / 2)
 }
 
-function linear(x, y, px, py, radius) {
-  const v = radius / 50 - 0.02 * Math.sqrt(Math.pow(x - px, 2) + Math.pow(y - py, 2))
-  return v > 0 ? v : 0
+function exponential(x, y, px, py, sigma) {
+  return Math.exp(-euclideanDistance(x, y, px, py) / sigma)
+}
+
+function euclideanDistanceSquared(x, y, px, py) {
+  return Math.pow(x - px, 2) + Math.pow(y - py, 2)
+}
+
+function euclideanDistance(x, y, px, py) {
+  return Math.sqrt(euclideanDistanceSquared(x, y, px, py))
+}
+
+function step(x, y, px, py, radius) {
+  return Math.sqrt(Math.pow(x - px, 2) + Math.pow(y - py, 2)) <= radius ? 1 : 0
 }
 
 function drawHeatData(heatData, canvas, colors) {
-  const width = canvas.width 
-  const height = canvas.height 
+  const width = canvas.width
+  const height = canvas.height
   const ctx = canvas.getContext('2d')
+  ctx.imageSmoothingQuality = "high"
   const colormap = buildColormap(colors)
   let imgData = ctx.createImageData(width, height)
   for (let y = 0; y < height; y++) {
