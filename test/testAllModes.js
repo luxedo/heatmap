@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 /*  
     @luxedo/heatmap - Creates heatmaps from latitude and longitude data 
     Copyright (C) 2020 Luiz Eduardo Amaral 
@@ -19,23 +17,27 @@
 */
 const fs = require('fs')
 const heatmap = require('@luxedo/heatmap')
-const args = require('yargs')
-  .scriptName("heatmap")
-  .usage('Usage: $0 -i input_file -o output_file\n       $0 [-] file')
-  .argv
+const OUTPUT_FOLDER = 'test/output/'
 
 const main = (() => {
-  let data;
-  let out = "file"
-  if (args.hasOwnProperty("o") || args.hasOwnProperty("i")) {
-    if (!(args.hasOwnProperty("o") && args.hasOwnProperty("i")))
-      throw Error("You must provide both -i (input_file) and -o (output_file)")
-    data = JSON.parse(fs.readFileSync(args.i).toString())
-  } else {
-    data = JSON.parse(fs.readFileSync(0, 'utf-8'))
-    out = "stdout"
-  }
-  const fnArgs = [
+  data = JSON.parse(fs.readFileSync('test/ipanema.json'))
+  Object.entries(heatmap.kernels).forEach(([k, kernel]) => {
+    Object.entries(heatmap.methods).forEach(([m, method]) => {
+      data.kernel = k
+      data.method = m
+      const fnArgs = buildFnArgs(data)
+      const {
+        buf
+      } = heatmap.drawGeoHeatmap(...fnArgs)
+      const filename = `${OUTPUT_FOLDER}test_${m}_${k}.png` 
+      fs.writeFileSync(filename, buf)
+    })
+  })
+})()
+
+
+function buildFnArgs(data) {
+  return [
     data.coords,
     data.points,
     data.colors || null,
@@ -43,13 +45,7 @@ const main = (() => {
     data.pxPerDegree || null,
     data.width || null,
     data.height || null,
-    data.kernel || null
+    data.kernel || null,
+    data.method || null
   ]
-  const {
-    buf
-  } = heatmap.drawGeoHeatmap(...fnArgs)
-  if (out == "file")
-    fs.writeFileSync(args.o, buf)
-  else
-    process.stdout.write(buf.toString())
-})()
+}

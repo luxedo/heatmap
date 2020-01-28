@@ -24,7 +24,26 @@ const {
   rgbToHsluv
 } = require('hsluv')
 
-exports.drawGeoHeatmap = (coords, points, colors = null, crop = true, pxPerDegree = null, width = null, height = null, mapper = null, accumulator = null) => {
+const kernels = {
+  "gaussian": gaussianKernel,
+  "exponential": exponentialKernel,
+  "inverseLinear": inverseLinearKernel,
+  "inversePolynomial": inversePolynomialKernel,
+  "inverseMultiquadratic": inverseMultiquadraticKernel,
+  "dampedCosine": dampedCosineKernel,
+  "step": stepKernel,
+  "bump": bump,
+}
+const methods = {
+  "sum": sumMethod,
+  "max": maxMethod,
+  "nearest": nearestMethod,
+  "shepards": shepardsMethod, // IDW
+}
+exports.kernels = kernels
+exports.methods = methods
+
+exports.drawGeoHeatmap = (coords, points, colors = null, crop = true, pxPerDegree = null, width = null, height = null, kernel = null, method = null) => {
   const {
     cCoords,
     cPoints,
@@ -33,14 +52,14 @@ exports.drawGeoHeatmap = (coords, points, colors = null, crop = true, pxPerDegre
     origin,
     end
   } = convertData(coords, points, pxPerDegree, width, height)
-  if (mapper == null) mapper = exports.gaussianMapper
-  if (accumulator == null) accumulator = exports.addAccumulator
   if (colors == null) colors = {
-    "steps": 200,
-    "values": ["#FFFFFF", "#00FF00", "#FFFF00", "#FF0000"],
+    "steps": 255,
+    "values": ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
     "weights": [2, 3, 3, 2],
   }
-  const buf = exports.drawHeatmap(cPoints, cWidth, cHeight, colors, crop, cCoords, mapper, accumulator)
+  if (kernel == null) kernel = "step"
+  if (method == null) method = "shepards"
+  const buf = exports.drawHeatmap(cPoints, cWidth, cHeight, colors, crop, cCoords, kernel, method)
   return {
     buf,
     origin,
@@ -48,9 +67,9 @@ exports.drawGeoHeatmap = (coords, points, colors = null, crop = true, pxPerDegre
   }
 }
 
-exports.drawHeatmap = (cPoints, width, height, colors, crop, cCoords, mapper, accumulator) => {
+exports.drawHeatmap = (cPoints, width, height, colors, crop, cCoords, kernel, method) => {
   if (crop === true && !cCoords instanceof Array) throw new Error("You must provide a polygon in cCoords to crop")
-  const heatData = buildHeatData(cPoints, width, height, mapper, accumulator)
+  const heatData = interpolateData(cPoints, width, height, kernel, method)
   const canvas = createCanvas(width, height)
   drawHeatData(heatData, canvas, colors)
   if (crop) clipImg(canvas, cCoords)
@@ -92,7 +111,7 @@ function convertData(coords, points, pxPerDegree, width, height) {
     return {
       px: (item.lng - origin[0]) * cScale,
       py: cHeight - (item.lat - origin[1]) * cScale - offset,
-      radius: item.radius,
+      radius: 5*item.radius,
       value: item.value
     }
   })
@@ -106,16 +125,18 @@ function convertData(coords, points, pxPerDegree, width, height) {
   }
 }
 
-function buildHeatData(cPoints, width, height, mapper, accumulator) {
+function interpolateData(cPoints, width, height, kernel, method) {
+  if (!(kernel in kernels)) throw new Error(`${kernel} not listed. Chose one of ${Object.keys(kernels)}`)
+  if (!(method in methods)) throw new Error(`${method} not listed. Chose one of ${Object.keys(methods)}`)
   let heatData = []
   for (let y = 0; y < height; y++) {
     let row = []
     for (let x = 0; x < width; x++) {
-      const intensities = cPoints.map(item => mapper(Object.assign({}, {
-        x,
-        y
-      }, item)))
-      const value = accumulator(intensities)
+      const data = kernels[kernel](cPoints.map(item => {
+        item.r = euclideanDistance(x, y, item.px, item.py)
+        return item
+      }))
+      const value = methods[method](data)
       row.push(value)
     }
     heatData.push(row)
@@ -123,41 +144,70 @@ function buildHeatData(cPoints, width, height, mapper, accumulator) {
   return heatData
 }
 
-exports.gaussianMapper = (item) => {
-  return item.value * gaussian(item.x, item.y, item.px, item.py, item.radius)
+function gaussianKernel(cPoints) {
+  return cPoints.map((item) => {
+    item.fi = item.value * gaussian(item.r, item.radius)
+    return item
+  })
 }
 
-exports.exponentialMapper = (item) => {
-  return item.value * exponential(item.x, item.y, item.px, item.py, item.radius)
+function exponentialKernel(cPoints) {
+  return cPoints.map((item) => {
+    item.fi = item.value * Math.exp(-item.r / item.radius)
+    return item
+  })
 }
 
-exports.inverseLinearMapper = (item) => {
-  return item.radius * item.value / 5 / euclideanDistance(item.x, item.y, item.px, item.py)
+function inverseLinearKernel(cPoints) {
+  return cPoints.map((item) => {
+    item.fi = item.value / (1 + item.r / item.radius)
+    return item
+  })
 }
 
-exports.inverseSquaredMapper = (item) => {
-  return item.value * item.radius * 10 / euclideanDistanceSquared(item.x, item.y, item.px, item.py)
+function inversePolynomialKernel(cPoints) {
+  return cPoints.map((item) => {
+    item.degree = item.degree || 2
+    item.fi = item.value / (1 + Math.pow(item.r / item.radius, item.degree))
+    return item
+  })
 }
 
-exports.stepMapper = (item) => {
-  return item.value * step(item.x, item.y, item.px, item.py, item.radius)
+function inverseMultiquadraticKernel(cPoints) {
+  return cPoints.map((item) => {
+    item.fi = item.value / Math.sqrt(1 + Math.pow(item.r / item.radius, 2))
+    return item
+  })
 }
 
-exports.addAccumulator = (intensities) => {
-  return intensities.reduce((acc, cur) => acc + cur, 0)
+function dampedCosineKernel(cPoints) {
+  return cPoints.map((item) => {
+    item.fi = item.value * exponential(item.r, item.radius) *
+      (1 + Math.cos(item.r * Math.PI / 180)) / 2
+    return item
+  })
 }
 
-//exports.meanAccumulator = (intensities) => {
-exports.addAccumulator = (intensities) => {
-  return intensities.reduce((acc, cur) => acc + cur, 0) / intensities.length
+function stepKernel(cPoints) {
+  return cPoints.map((item) => {
+    item.fi = item.r < item.radius ? item.value : 0
+    return item
+  })
 }
 
-function gaussian(x, y, px, py, sigma) {
-  return Math.exp(-euclideanDistanceSquared(x, y, px, py) / Math.pow(sigma, 2) / 2)
+function bump(cPoints) {
+  return cPoints.map((item) => {
+    if (item.r > item.radius) {
+      item.fi = 0
+    } else {
+      item.fi = item.value * Math.exp(1 / (1 - 1 / Math.pow(item.r / item.radius, 2)))
+    }
+    return item
+  })
 }
 
-function exponential(x, y, px, py, sigma) {
-  return Math.exp(-euclideanDistance(x, y, px, py) / sigma)
+function gaussian(r, sigma) {
+  return Math.exp(-Math.pow(r / sigma, 2))
 }
 
 function euclideanDistanceSquared(x, y, px, py) {
@@ -168,8 +218,31 @@ function euclideanDistance(x, y, px, py) {
   return Math.sqrt(euclideanDistanceSquared(x, y, px, py))
 }
 
-function step(x, y, px, py, radius) {
-  return Math.sqrt(Math.pow(x - px, 2) + Math.pow(y - py, 2)) <= radius ? 1 : 0
+function sumMethod(cPoints) {
+  return cPoints.reduce((acc, item) => acc + item.fi, 0)
+}
+
+function maxMethod(cPoints) {
+  return Math.max(...cPoints.map(item => item.fi))
+}
+
+function nearestMethod(cPoints) {
+  return cPoints.reduce((acc, item) => {
+    return item.r <= acc.r && item.fi > 0 ? item : acc
+  }).fi
+}
+
+function shepardsMethod(cPoints) {
+  let sigmaW = 0
+  return cPoints
+    .map((item) => {
+      const degree = item.degree || 3
+      const kernel = item.weightKernel || gaussian
+      item.wi = 1 / Math.pow(item.r, degree)
+      sigmaW += item.wi
+      return item
+    })
+    .reduce((acc, item) => acc + item.fi * item.wi / sigmaW, 0)
 }
 
 function drawHeatData(heatData, canvas, colors) {
