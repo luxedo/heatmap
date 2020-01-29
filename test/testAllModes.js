@@ -15,26 +15,23 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-const fs = require('fs')
-const heatmap = require('@luxedo/heatmap')
-const OUTPUT_FOLDER = 'test/output/'
+const fs = require("fs");
+const heatmap = require("@luxedo/heatmap");
+const OUTPUT_FOLDER = "test/output/";
 
 const main = (() => {
-  data = JSON.parse(fs.readFileSync('test/ipanema.json'))
+  data = JSON.parse(fs.readFileSync("test/ipanema.json"));
   Object.entries(heatmap.kernels).forEach(([k, kernel]) => {
     Object.entries(heatmap.methods).forEach(([m, method]) => {
-      data.kernel = k
-      data.method = m
-      const fnArgs = buildFnArgs(data)
-      const {
-        buf
-      } = heatmap.drawGeoHeatmap(...fnArgs)
-      const filename = `${OUTPUT_FOLDER}test_${m}_${k}.png` 
-      fs.writeFileSync(filename, buf)
-    })
-  })
-})()
-
+      data.kernel = k;
+      data.method = m;
+      const fnArgs = buildFnArgs(data);
+      const { buf } = heatmap.drawGeoHeatmap(...fnArgs);
+      const filename = `${OUTPUT_FOLDER}test_${m}_${k}.png`;
+      fs.writeFileSync(filename, buf);
+    });
+  });
+})();
 
 function buildFnArgs(data) {
   return [
@@ -47,5 +44,5 @@ function buildFnArgs(data) {
     data.height || null,
     data.kernel || null,
     data.method || null
-  ]
+  ];
 }

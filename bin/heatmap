@@ -17,23 +17,22 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-const fs = require('fs')
-const heatmap = require('@luxedo/heatmap')
-const args = require('yargs')
+const fs = require("fs");
+const heatmap = require("@luxedo/heatmap");
+const args = require("yargs")
   .scriptName("heatmap")
-  .usage('Usage: $0 -i input_file -o output_file\n       $0 [-] file')
-  .argv
+  .usage("Usage: $0 -i input_file -o output_file\n       $0 [-] file").argv;
 
 const main = (() => {
   let data;
-  let out = "file"
+  let out = "file";
   if (args.hasOwnProperty("o") || args.hasOwnProperty("i")) {
     if (!(args.hasOwnProperty("o") && args.hasOwnProperty("i")))
-      throw Error("You must provide both -i (input_file) and -o (output_file)")
-    data = JSON.parse(fs.readFileSync(args.i).toString())
+      throw Error("You must provide both -i (input_file) and -o (output_file)");
+    data = JSON.parse(fs.readFileSync(args.i).toString());
   } else {
-    data = JSON.parse(fs.readFileSync(0, 'utf-8'))
-    out = "stdout"
+    data = JSON.parse(fs.readFileSync(0, "utf-8"));
+    out = "stdout";
   }
   const fnArgs = [
     data.coords,
@@ -44,12 +43,8 @@ const main = (() => {
     data.width || null,
     data.height || null,
     data.kernel || null
-  ]
-  const {
-    buf
-  } = heatmap.drawGeoHeatmap(...fnArgs)
-  if (out == "file")
-    fs.writeFileSync(args.o, buf)
-  else
-    process.stdout.write(buf.toString())
-})()
+  ];
+  const { buf } = heatmap.drawGeoHeatmap(...fnArgs);
+  if (out == "file") fs.writeFileSync(args.o, buf);
+  else process.stdout.write(buf.toString());
+})();
