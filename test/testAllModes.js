@@ -20,14 +20,14 @@ const heatmap = require("@luxedo/heatmap");
 const OUTPUT_FOLDER = "test/output/";
 
 const main = (() => {
-  data = JSON.parse(fs.readFileSync("test/ipanema.json"));
+  data = JSON.parse(fs.readFileSync("test/testLocation.json"));
   Object.entries(heatmap.kernels).forEach(([k, kernel]) => {
     Object.entries(heatmap.methods).forEach(([m, method]) => {
       data.kernel = k;
       data.method = m;
       const fnArgs = buildFnArgs(data);
       const { buf } = heatmap.drawGeoHeatmap(...fnArgs);
-      const filename = `${OUTPUT_FOLDER}test_${m}_${k}.png`;
+      const filename = `${OUTPUT_FOLDER}${m}_${k}.png`;
       fs.writeFileSync(filename, buf);
     });
   });

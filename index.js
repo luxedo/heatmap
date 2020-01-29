@@ -19,19 +19,19 @@ const { createCanvas, Image } = require("canvas");
 const { hsluvToRgb, rgbToHsluv } = require("hsluv");
 
 /* EXPORTS */
-exports.DEFAULTS = {
-  sigma: 100,
-  epsilon: 1,
+exports.KERNEL_DEFAULTS = {
+  sigma: 150,
+  epsilon: 0.005,
   degree: 2,
   omega: 4,
-  delta: 0,
-  radius: 10
+  phi: 0,
+  radius: 100
 };
 exports.kernels = {
   gaussian: gaussianKernel,
   exponential: exponentialKernel,
-  inverseLinear: inverseLinearKernel,
-  inversePolynomial: inversePolynomialKernel,
+  linear: linearKernel,
+  polynomial: polynomialKernel,
   cosine: cosineKernel,
   dampedCosine: dampedCosineKernel,
   step: stepKernel,
@@ -53,7 +53,8 @@ exports.drawGeoHeatmap = (
   width = null,
   height = null,
   kernel = null,
-  method = null
+  method = null,
+  methodArgs = null
 ) => {
   const { cCoords, cPoints, cWidth, cHeight, origin, end } = convertData(
     coords,
@@ -62,14 +63,6 @@ exports.drawGeoHeatmap = (
     width,
     height
   );
-  if (colors == null)
-    colors = {
-      steps: 255,
-      values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
-      weights: [2, 3, 3, 2]
-    };
-  if (kernel == null) kernel = "gaussian";
-  if (method == null) method = "nearest";
   const buf = exports.drawHeatmap(
     cPoints,
     cWidth,
@@ -78,7 +71,8 @@ exports.drawGeoHeatmap = (
     crop,
     cCoords,
     kernel,
-    method
+    method,
+    methodArgs
   );
   return {
     buf,
@@ -91,15 +85,45 @@ exports.drawHeatmap = (
   cPoints,
   width,
   height,
-  colors,
-  crop,
-  cCoords,
-  kernel,
-  method
+  colors = null,
+  crop = false,
+  cCoords = null,
+  kernel = null,
+  method = null,
+  methodArgs = null
 ) => {
-  if (crop === true && !cCoords instanceof Array)
+  if (colors == null)
+    colors = {
+      steps: 100,
+      values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
+      weights: [2, 3, 3, 2]
+    };
+  if (kernel == null) kernel = "gaussian";
+  if (method == null) method = "shepards";
+  if (methodArgs == null)
+    methodArgs = {
+      kernel: "polynomial",
+      kernelArgs: {
+        sigma: 100,
+        epsilon: 0.015,
+        degree: 5,
+        omega: 4,
+        phi: 0,
+        radius: 100
+      }
+    };
+  if (crop === true && (!cCoords instanceof Array || cCoords.length < 3))
     throw new Error("You must provide a polygon in cCoords to crop");
-  const heatData = interpolateData(cPoints, width, height, kernel, method);
+
+  methodArgs = parseMethodArgs(methodArgs);
+  const heatData = interpolateData(
+    cPoints,
+    width,
+    height,
+    kernel,
+    method,
+    methodArgs
+  );
   const canvas = createCanvas(width, height);
   drawHeatData(heatData, canvas, colors);
   if (crop) clipImg(canvas, cCoords);
@@ -154,7 +178,7 @@ function convertData(coords, points, pxPerDegree, width, height) {
       py: cHeight - (item.lat - origin[1]) * cScale - offset,
       radius: item.radius,
       value: item.value,
-      kernelArgs: fillDefaults(item, exports.DEFAULTS)
+      kernelArgs: fillDefaults(item, exports.KERNEL_DEFAULTS)
     };
   });
   return {
@@ -167,6 +191,23 @@ function convertData(coords, points, pxPerDegree, width, height) {
   };
 }
 
+function parseMethodArgs(methodArgs) {
+  let args = {};
+  if (Object.keys(methodArgs).includes("kernel")) {
+    const kernel = exports.kernels[methodArgs.kernel];
+    if (Object.keys(methodArgs).includes("kernelArgs")) {
+      methodArgs.kernelArgs = fillDefaults(
+        methodArgs.kernelArgs,
+        exports.KERNEL_DEFAULTS
+      );
+    } else {
+      methodArgs.kernelArgs = {};
+    }
+    args.kernel = item => kernel(item, methodArgs.kernelArgs);
+  }
+  return args;
+}
+
 function fillDefaults(item, defaults) {
   return Object.entries(defaults).reduce((acc, [key, value]) => {
     acc[key] = item[key] || value;
@@ -176,7 +217,14 @@ function fillDefaults(item, defaults) {
 }
 
 /* FUNCTIONS */
-function interpolateData(cPoints, width, height, kernel, method) {
+function interpolateData(
+  cPoints,
+  width,
+  height,
+  kernel,
+  method,
+  methodArgs = null
+) {
   if (!(kernel in exports.kernels))
     throw new Error(
       `${kernel} not listed. Chose one of ${Object.keys(exports.kernels)}`
@@ -185,16 +233,30 @@ function interpolateData(cPoints, width, height, kernel, method) {
     throw new Error(
       `${method} not listed. Chose one of ${Object.keys(exports.methods)}`
     );
+  // cPoints.map(item => {  // Adjustments for the examples
+  //   if (method == 'sum') {
+  //     item.kernelArgs.radius /= 1.5;
+  //     item.kernelArgs.sigma /= 2;
+  //     item.kernelArgs.epsilon *= 5;
+  //     if (kernel == 'linear') {
+  //       item.kernelArgs.epsilon *= 3;
+  //     }
+  //   }
+  //   if (kernel == 'step' && method == 'nearest') {
+  //       item.kernelArgs.radius *= 3;
+  //     }
+  // });
+
   let heatData = [];
   for (let y = 0; y < height; y++) {
     let row = [];
     for (let x = 0; x < width; x++) {
       const data = cPoints.map(item => {
         item.r = euclideanDistance(x, y, item.px, item.py);
-        item.fi = item.value * exports.kernels[kernel](item, item.kernelArgs);
+        item.w = exports.kernels[kernel](item.r, item.kernelArgs);
         return item;
       });
-      const value = exports.methods[method](data);
+      const value = exports.methods[method](data, methodArgs);
       row.push(value);
     }
     heatData.push(row);
@@ -300,73 +362,65 @@ function clipImg(canvas, cCoords) {
 }
 
 /* KERNELS */
-function gaussianKernel(item, { sigma }) {
-  return Math.exp(-Math.pow(item.r / sigma, 2));
+function gaussianKernel(r, { sigma }) {
+  return Math.exp(-Math.pow(r / sigma, 2));
 }
 
-function exponentialKernel(item, epsilon) {
-  epsilon = item.epsilon || epsilon || 1;
-  return Math.exp(-item.r * epsilon);
+function exponentialKernel(r, { epsilon }) {
+  return Math.exp(-r * epsilon);
 }
 
-function inverseLinearKernel(item, epsilon) {
-  epsilon = item.epsilon || epsilon || 1;
-  return inversePolynomialKernel(item, epsilon, 1);
+function linearKernel(r, { epsilon }) {
+  return polynomialKernel(r, { epsilon, degree: 1 });
 }
 
-function inversePolynomialKernel(item, epsilon, degree) {
-  epsilon = item.epsilon || epsilon || 1;
-  degree = item.degree || degree || 2;
-  return 1 / (1 + Math.pow(item.r * item.epsilon, degree));
+function polynomialKernel(r, { epsilon, degree }) {
+  return 1 / (1 + Math.pow(r * epsilon, degree));
 }
 
-function cosineKernel(item, omega, delta) {
-  omega = item.omega || omega || 4;
-  delta = item.delta || delta || 0;
-  return (1 + Math.cos(((item.r * Math.PI) / 180) * omega + delta)) / 2;
+function cosineKernel(r, { omega, phi }) {
+  return (1 + Math.cos(((r * Math.PI) / 180) * omega + phi)) / 2;
 }
 
-function dampedCosineKernel(item, omega, delta, epsilon) {
-  omega = item.omega || omega || 4;
-  delta = item.delta || delta || 0;
-  epsilon = item.epsilon || epsilon || 1;
-  return cosineKernel(item, omega, delta) * exponentialKernel(item, epsilon);
+function dampedCosineKernel(r, { omega, phi, epsilon }) {
+  return cosineKernel(r, { omega, phi }) * exponentialKernel(r, { epsilon });
 }
 
-function stepKernel(item, radius) {
-  radius = item.radius || radius || 10;
-  return item.r < radius ? 1 : 0;
+function stepKernel(r, { radius }) {
+  return r < radius ? 1 : 0;
 }
 
-function bumpKernel(item, radius) {
-  radius = item.radius || radius || 10;
-  return item.r > radius
-    ? 0
-    : Math.exp(1 / (1 - 1 / Math.pow(item.r / radius, 2)));
+function bumpKernel(r, { radius }) {
+  return r > radius ? 0 : Math.exp(1 / (1 - 1 / Math.pow(r / radius, 2)));
 }
+
 /* METHODS */
 function sumMethod(cPoints) {
-  return cPoints.reduce((acc, item) => acc + item.fi, 0);
+  return cPoints.reduce((acc, item) => acc + item.value * item.w, 0);
 }
 
 function maxMethod(cPoints) {
-  return Math.max(...cPoints.map(item => item.fi));
+  return Math.max(...cPoints.map(item => item.value * item.w));
 }
 
 function nearestMethod(cPoints) {
-  return cPoints.reduce((acc, item) => {
-    return item.r <= acc.r && item.fi > 0 ? item : acc;
-  }).fi;
+  const item = cPoints.reduce((acc, item) => {
+    return item.r <= acc.r && item.w > 0 ? item : acc;
+  });
+  return item.value * item.w;
 }
 
-function shepardsMethod(cPoints) {
-  let sigmaW = 0;
-  return cPoints
-    .map(item => {
-      const degree = item.degree || 3;
-      item.wi = 1 / Math.pow(item.r, degree);
-      sigmaW += item.wi;
-      return item;
-    })
-    .reduce((acc, item) => acc + (item.fi * item.wi) / sigmaW, 0);
+function shepardsMethod(cPoints, { kernel }) {
+  let sigmaWs = 0;
+  return (
+    cPoints
+      .map(item => {
+        item.ws = kernel(item.r);
+        sigmaWs += item.ws;
+        return item;
+      })
+      .reduce((acc, item) => {
+        return acc + (item.value * item.w * item.ws) / sigmaWs;
+      }, 0) || 0
+  );
 }
