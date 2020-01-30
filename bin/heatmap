@@ -21,7 +21,27 @@ const fs = require("fs");
 const heatmap = require("@luxedo/heatmap");
 const args = require("yargs")
   .scriptName("heatmap")
-  .usage("Usage: $0 -i input_file -o output_file\n       $0 [-] file").argv;
+  .usage(`Usage: $0 [-g] -i input_file -o output_file       $0 [-g] [--] file`)
+  .option("geo", {
+    alias: "g",
+    type: "boolean",
+    description: "Receives input as geographic data"
+  })
+  .option("input", {
+    alias: "i",
+    type: "string",
+    description: "Input json file with the configurations"
+  })
+  .option("output", {
+    alias: "o",
+    type: "string",
+    description: "Output png file"
+  })
+  .option("", {
+    description: "Receives input from stdin and outputs to stdout"
+  }).epilog(`Example:
+echo '{"points": [{"px": 10, "py": 10, "value": 1, "sigma": 30}, {"px": 120, "py": 30, "value": 0.6, "sigma": 50}, {"px": 70, "py": 130, "value": 0.2, "sigma": 70}], "width": 150, "height": 150, "method": "nearest"}' | bin/heatmap -- > example3.png
+   See ... for configuration details.`).argv;
 
 const main = (() => {
   let data;
@@ -34,17 +54,15 @@ const main = (() => {
     data = JSON.parse(fs.readFileSync(0, "utf-8"));
     out = "stdout";
   }
-  const fnArgs = [
-    data.coords,
-    data.points,
-    data.colors || null,
-    data.crop || null,
-    data.pxPerDegree || null,
-    data.width || null,
-    data.height || null,
-    data.kernel || null
-  ];
-  const { buf } = heatmap.drawGeoHeatmap(...fnArgs);
-  if (out == "file") fs.writeFileSync(args.o, buf);
-  else process.stdout.write(buf.toString());
+
+  let Buf;
+  if (args.hasOwnProperty("g")) {
+    const { buf } = heatmap.drawGeoHeatmap(data);
+    Buf = buf;
+  } else {
+    Buf = heatmap.drawHeatmap(data);
+  }
+
+  if (out == "file") fs.writeFileSync(args.o, Buf);
+  else process.stdout.write(Buf);
 })();

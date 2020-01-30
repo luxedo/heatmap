@@ -44,36 +44,38 @@ exports.methods = {
   shepards: shepardsMethod // IDW
 };
 
-exports.drawGeoHeatmap = (
-  coords,
-  points,
-  colors = null,
-  crop = true,
-  pxPerDegree = null,
+exports.drawGeoHeatmap = ({
+  geoCoords,
+  geoPoints,
+  pxPerDeg = null,
   width = null,
   height = null,
+  colors = null,
+  crop = false,
   kernel = null,
   method = null,
   methodArgs = null
-) => {
-  const { cCoords, cPoints, cWidth, cHeight, origin, end } = convertData(
-    coords,
-    points,
-    pxPerDegree,
+}) => {
+  const { cropPolygon, points, cWidth, cHeight, origin, end } = convertData(
+    geoCoords,
+    geoPoints,
+    pxPerDeg,
     width,
     height
   );
-  const buf = exports.drawHeatmap(
-    cPoints,
-    cWidth,
-    cHeight,
+  width = cWidth
+  height = cHeight
+  crop = crop === true ? cropPolygon : null;
+  const buf = exports.drawHeatmap({
+    points,
+    width,
+    height,
     colors,
     crop,
-    cCoords,
     kernel,
     method,
     methodArgs
-  );
+  });
   return {
     buf,
     origin,
@@ -81,17 +83,16 @@ exports.drawGeoHeatmap = (
   };
 };
 
-exports.drawHeatmap = (
-  cPoints,
+exports.drawHeatmap = ({
+  points,
   width,
   height,
   colors = null,
-  crop = false,
-  cCoords = null,
+  cropPolygon = null,
   kernel = null,
   method = null,
   methodArgs = null
-) => {
+}) => {
   if (colors == null)
     colors = {
       steps: 100,
@@ -112,12 +113,12 @@ exports.drawHeatmap = (
         radius: 100
       }
     };
-  if (crop === true && (!cCoords instanceof Array || cCoords.length < 3))
-    throw new Error("You must provide a polygon in cCoords to crop");
+  if (cropPolygon instanceof Array && cropPolygon.length < 3)
+    throw new Error("You must provide a polygon in cropPolygon to crop");
 
   methodArgs = parseMethodArgs(methodArgs);
   const heatData = interpolateData(
-    cPoints,
+    points,
     width,
     height,
     kernel,
@@ -126,29 +127,29 @@ exports.drawHeatmap = (
   );
   const canvas = createCanvas(width, height);
   drawHeatData(heatData, canvas, colors);
-  if (crop) clipImg(canvas, cCoords);
+  if (cropPolygon != null) clipImg(canvas, cropPolygon);
   return canvas.toBuffer("image/png", {});
 };
 
-function convertData(coords, points, pxPerDegree, width, height) {
-  if (pxPerDegree == null && width == null && height == null)
+function convertData(geoCoords, geoPoints, pxPerDeg, width, height) {
+  if (pxPerDeg == null && width == null && height == null)
     throw new Error(
-      "You must provide any of: pxPerDegree, width or height to convertData"
+      "You must provide any of: pxPerDeg, width or height to convertData"
     );
-  if (pxPerDegree != null && (width != null || height != null))
+  if (pxPerDeg != null && (width != null || height != null))
     throw new Error(
-      "You must provide either: pxPerDegree or width and/or height to convertData"
+      "You must provide either: pxPerDeg or width and/or height to convertData"
     );
-  const lats = coords.map(item => item.lat);
-  const lngs = coords.map(item => item.lng);
+  const lats = geoCoords.map(item => item.lat);
+  const lngs = geoCoords.map(item => item.lng);
   const origin = [Math.min(...lngs), Math.min(...lats)];
   const end = [Math.max(...lngs), Math.max(...lats)];
   let cWidth,
     cHeight,
-    cScale = pxPerDegree,
+    cScale = pxPerDeg,
     offset = 0;
 
-  if (pxPerDegree == null) {
+  if (pxPerDeg == null) {
     const sw = width / (end[0] - origin[0]);
     const sh = height / (end[1] - origin[1]);
     if ((width != null) & (height != null)) {
@@ -161,29 +162,27 @@ function convertData(coords, points, pxPerDegree, width, height) {
   }
   cWidth = Math.ceil((end[0] - origin[0]) * cScale);
   cHeight = Math.ceil((end[1] - origin[1]) * cScale);
-  if (pxPerDegree == null && width != null && height != null) {
+  if (pxPerDeg == null && width != null && height != null) {
     offset = height - cHeight;
     cWidth = Math.max(cWidth, width);
     cHeight = Math.max(cHeight, height);
   }
-  const cCoords = coords.map(item => {
+  const cropPolygon = geoCoords.map(item => {
     return [
       (item.lng - origin[0]) * cScale,
       cHeight - (item.lat - origin[1]) * cScale - offset
     ];
   });
-  const cPoints = points.map(item => {
-    return {
+  const points = geoPoints.map(item => {
+    return Object.assign(item, {
       px: (item.lng - origin[0]) * cScale,
       py: cHeight - (item.lat - origin[1]) * cScale - offset,
-      radius: item.radius,
       value: item.value,
-      kernelArgs: fillDefaults(item, exports.KERNEL_DEFAULTS)
-    };
+    });
   });
   return {
-    cCoords,
-    cPoints,
+    cropPolygon,
+    points,
     cWidth,
     cHeight,
     origin,
@@ -218,7 +217,7 @@ function fillDefaults(item, defaults) {
 
 /* FUNCTIONS */
 function interpolateData(
-  cPoints,
+  points,
   width,
   height,
   kernel,
@@ -233,30 +232,20 @@ function interpolateData(
     throw new Error(
       `${method} not listed. Chose one of ${Object.keys(exports.methods)}`
     );
-  // cPoints.map(item => {  // Adjustments for the examples
-  //   if (method == 'sum') {
-  //     item.kernelArgs.radius /= 1.5;
-  //     item.kernelArgs.sigma /= 2;
-  //     item.kernelArgs.epsilon *= 5;
-  //     if (kernel == 'linear') {
-  //       item.kernelArgs.epsilon *= 3;
-  //     }
-  //   }
-  //   if (kernel == 'step' && method == 'nearest') {
-  //       item.kernelArgs.radius *= 3;
-  //     }
-  // });
+  points.forEach(item => {
+    item.kernelArgs = fillDefaults(item, exports.KERNEL_DEFAULTS);
+  });
 
   let heatData = [];
   for (let y = 0; y < height; y++) {
     let row = [];
     for (let x = 0; x < width; x++) {
-      const data = cPoints.map(item => {
+      const intensities = points.map(item => {
         item.r = euclideanDistance(x, y, item.px, item.py);
         item.w = exports.kernels[kernel](item.r, item.kernelArgs);
         return item;
       });
-      const value = exports.methods[method](data, methodArgs);
+      const value = exports.methods[method](intensities, methodArgs);
       row.push(value);
     }
     heatData.push(row);
@@ -282,9 +271,14 @@ function drawHeatData(heatData, canvas, colors) {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
-      const color =
-        colormap[Math.round(heatData[y][x] * colors.steps)] ||
-        colormap[colormap.length - 1];
+      let cIndex = Math.round(heatData[y][x] * colors.steps);
+      cIndex =
+        cIndex < 0
+          ? 0
+          : cIndex >= colormap.length
+          ? colormap.length - 1
+          : cIndex;
+      const color = colormap[cIndex];
       imgData.data[i + 0] = color[0];
       imgData.data[i + 1] = color[1];
       imgData.data[i + 2] = color[2];
@@ -347,15 +341,15 @@ function hexToRgbNorm(hex) {
 const degreesToRadians = degrees => (degrees * Math.PI) / 180;
 const radiansToDegrees = radians => (radians * 180) / Math.PI;
 
-function clipImg(canvas, cCoords) {
+function clipImg(canvas, cropPolygon) {
   const ctx = canvas.getContext("2d");
   const dataURL = canvas.toDataURL("image/png");
   const image = new Image();
   image.src = dataURL;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.beginPath();
-  ctx.moveTo(cCoords[0][0], cCoords[0][1]);
-  cCoords.forEach(item => ctx.lineTo(...item));
+  ctx.moveTo(cropPolygon[0][0], cropPolygon[0][1]);
+  cropPolygon.forEach(item => ctx.lineTo(...item));
   ctx.fill();
   ctx.clip();
   ctx.drawImage(image, 0, 0);
@@ -391,29 +385,29 @@ function stepKernel(r, { radius }) {
 }
 
 function bumpKernel(r, { radius }) {
-  return r > radius ? 0 : Math.exp(1 / (1 - 1 / Math.pow(r / radius, 2)));
+  return r >= radius ? 0 : Math.exp(1 / (1 - 1 / Math.pow(r / radius, 2)));
 }
 
 /* METHODS */
-function sumMethod(cPoints) {
-  return cPoints.reduce((acc, item) => acc + item.value * item.w, 0);
+function sumMethod(points) {
+  return points.reduce((acc, item) => acc + item.value * item.w, 0);
 }
 
-function maxMethod(cPoints) {
-  return Math.max(...cPoints.map(item => item.value * item.w));
+function maxMethod(points) {
+  return Math.max(...points.map(item => item.value * item.w).concat([0]));
 }
 
-function nearestMethod(cPoints) {
-  const item = cPoints.reduce((acc, item) => {
+function nearestMethod(points) {
+  const item = points.reduce((acc, item) => {
     return item.r <= acc.r && item.w > 0 ? item : acc;
   });
   return item.value * item.w;
 }
 
-function shepardsMethod(cPoints, { kernel }) {
+function shepardsMethod(points, { kernel }) {
   let sigmaWs = 0;
   return (
-    cPoints
+    points
       .map(item => {
         item.ws = kernel(item.r);
         sigmaWs += item.ws;
