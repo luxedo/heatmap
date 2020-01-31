@@ -35,28 +35,39 @@ exports.DEFAULT_COLORS = {
   },
   jet: {
     steps: 255,
-    values: ["#000080", "#0000FF", "#00FFFF", "#00FF00", "#FFFF00", "#FF0000", "800000"],
-    weights: [1, 2, 2, 2, 2, 2, 1]
+    values: [
+      "#000080",
+      "#0000FF",
+      "#00FFFF",
+      "#00FF00",
+      "#FFFF00",
+      "#FF0000",
+      "#800000"
+    ]
   },
   parula: {
-    steps: 100,
-    values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
-    weights: [2, 3, 3, 2]
+    steps: 255,
+    values: ["#4548A8", "#2D8CF4", "#8CCB4E", "#F8BA3D", "#F5EC32"]
   },
   gray: {
-    steps: 100,
-    values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
-    weights: [2, 3, 3, 2]
+    steps: 255,
+    values: ["#000000", "#FFFFFF"]
   },
   magma: {
-    steps: 100,
-    values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
-    weights: [2, 3, 3, 2]
+    steps: 255,
+    values: ["#000003", "#4C3578", "#B5477A", "#F27C5C", "#FAF6BF"]
+  },
+  plasma: {
+    steps: 255,
+    values: ["#1C3887", "#7E4EA7", "#CB4C7A", "#F59441", "#EDEC30"]
+  },
+  inferno: {
+    steps: 255,
+    values: ["#000003", "#54316C", "#B93E55", "#F4812D", "#FAF3A3"]
   },
   viridis: {
-    steps: 100,
-    values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
-    weights: [2, 3, 3, 2]
+    steps: 255,
+    values: ["#462553", "#3e4788", "#3A8E8C", "#7BD34F", "#FDE833"]
   }
 };
 exports.kernels = {
@@ -332,7 +343,7 @@ function buildColormap(colors) {
   }
   let colormap = [];
   if (!colorsObj.hasOwnProperty("weights")) {
-    colorsObj.weights = new Array(colorsObj.steps).fill(1);
+    colorsObj.weights = new Array(colorsObj.values.length).fill(1);
   }
   const totalSteps = colorsObj.weights.reduce((acc, cur) => acc + cur, 0);
   const steps = colorsObj.weights.map((val, idx) => {

@@ -94,7 +94,7 @@ fs.writeFileSync("example2.png", buf);
 - `points`: `Array` of points to draw `[{px, py, value}]`.
 - `width`: width of the image.
 - `height`: height of the image.
-- `colors`: Either an `Object` for colormap configuration, or a `String` of a default colormap. Options: `teelights`, `jet`, `parula`, `gray`, `magma`, `viridis`.
+- `colors`: Either an `Object` for colormap configuration, or a `String` of a default colormap. Options: `teelights`, `jet`, `parula`, `gray`, `magma`, `plasma`, `inferno`, `viridis`.
 - `cropPolygon`: `Array` of points `[{px, py}]` forming a polygon to crop the output image
 - `kernel`: The RBF kernel for computing the intensity of the heatmap. Options: `bump`, `cosine`, `dampedCosine`, `exponential`, `gaussian`. `linear`, `polynomial`, `step`.
 - `method`: The method for accumulating the intensities. Options: `max`, `nearest`, `shepards`, `sum`.
@@ -107,7 +107,7 @@ fs.writeFileSync("example2.png", buf);
 - `pxPerDeg`: Number of pixels per degree of latitude/longitude. To use this scaling mode neither `width` and `height` can be provided.
 - `width`: Forces the image to have a certain width. Can be used alongside with `height`.
 - `height`: Forces the image to have a certain height. Can be used alongside with `width`.
-- `colors`: Either an `Object` for colormap configuration, or a `String` of a default colormap. Options: `teelights`, `jet`, `parula`, `gray`, `magma`, `viridis`.
+- `colors`: Either an `Object` for colormap configuration, or a `String` of a default colormap. Options: `teelights`, `jet`, `parula`, `gray`, `magma`, `plasma`, `inferno`, `viridis`.
 - `crop`: Crops the polygon of the boundaries gven in `geoCoords` if `true`.
 - `kernel`: The RBF kernel for computing the intensity of the heatmap . Options: `bump`, `cosine`, `dampedCosine`, `exponential`, `gaussian`. `linear`, `polynomial`, `step`.
 - `method`: The method for accumulating the intensities. Options: `max`, `nearest`, `shepards`, `sum`.
@@ -259,12 +259,12 @@ The first option for configuring the colormap is by chosing one of the default c
 
 | []() | | | |
 | --------------------------------------------- | ----------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
-| **teelights** default | **jet** | **parula** |
-| ![teelights](doc/examples/teelights.png) | ![jet](doc/examples/jet.png) | ![parula](doc/examples/parula.png) |
-| **gray** | **magma** | **viridis** |
-| ![gray](doc/examples/gray.png) | ![magma](doc/examples/magma.png) | ![viridis](doc/examples/viridis.png) |
+| **teelights** default | **jet** | **parula** | **gray** |
+| ![teelights](doc/examples/teelights.png) | ![jet](doc/examples/jet.png) | ![parula](doc/examples/parula.png) | ![gray](doc/examples/gray.png) |
+| **magma** | **plasma** | **inferno** |  **viridis** |
+| ![magma](doc/examples/magma.png) | ![plasma](doc/examples/plasma.png) |  ![inferno](doc/examples/inferno.png) |![viridis](doc/examples/viridis.png) |
 
-The second option for configuring the colormap is an `Object` containing the following _properties_:
+The second option is an `Object` containing the following _properties_:
 
 - `steps`: Number of colors for interpolation.
 - `colors`: An `Array` of the colors in the colormap in hex.

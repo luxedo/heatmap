@@ -1,5 +1,4 @@
 {
-  "coords": [],
   "points": [{
     "px": 10,
     "py": 10,
@@ -80,5 +79,7 @@
     "sigma": 20,
     "omega": 16,
     "epsilon": 0.05
-  }]
+  }],
+  "width": 200,
+  "height": 200
 }

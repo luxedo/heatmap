@@ -189,7 +189,6 @@ const main = (() => {
   buf = heatmap.drawHeatmap({ points, width, height, colors });
   fs.writeFileSync("example4.png", buf);
 
-
   // Methods
   buf = heatmap.drawHeatmap({ points, width, height, method: "max" });
   fs.writeFileSync("max.png", buf);
@@ -230,22 +229,76 @@ const main = (() => {
   fs.writeFileSync("step.png", buf);
 
   // Colors
-  buf = heatmap.drawHeatmap({ points, width, height, colors: 'teelights'});
+  buf = heatmap.drawHeatmap({
+    points,
+    width,
+    height,
+    colors: "teelights",
+    kernel: "bump",
+    method: "sum"
+  });
   fs.writeFileSync("teelights.png", buf);
- 
-  buf = heatmap.drawHeatmap({ points, width, height, colors: 'jet', kernel: 'bump', method: 'sum'});
+  buf = heatmap.drawHeatmap({
+    points,
+    width,
+    height,
+    colors: "jet",
+    kernel: "bump",
+    method: "sum"
+  });
   fs.writeFileSync("jet.png", buf);
- 
-  buf = heatmap.drawHeatmap({ points, width, height, colors: 'parula'});
+  buf = heatmap.drawHeatmap({
+    points,
+    width,
+    height,
+    colors: "parula",
+    kernel: "bump",
+    method: "sum"
+  });
   fs.writeFileSync("parula.png", buf);
- 
-  buf = heatmap.drawHeatmap({ points, width, height, colors: 'gray'});
+  buf = heatmap.drawHeatmap({
+    points,
+    width,
+    height,
+    colors: "gray",
+    kernel: "bump",
+    method: "sum"
+  });
   fs.writeFileSync("gray.png", buf);
- 
-  buf = heatmap.drawHeatmap({ points, width, height, colors: 'magma'});
+  buf = heatmap.drawHeatmap({
+    points,
+    width,
+    height,
+    colors: "magma",
+    kernel: "bump",
+    method: "sum"
+  });
   fs.writeFileSync("magma.png", buf);
- 
-  buf = heatmap.drawHeatmap({ points, width, height, colors: 'viridis'});
+  buf = heatmap.drawHeatmap({
+    points,
+    width,
+    height,
+    colors: "plasma",
+    kernel: "bump",
+    method: "sum"
+  });
+  fs.writeFileSync("plasma.png", buf);
+  buf = heatmap.drawHeatmap({
+    points,
+    width,
+    height,
+    colors: "inferno",
+    kernel: "bump",
+    method: "sum"
+  });
+  fs.writeFileSync("inferno.png", buf);
+  buf = heatmap.drawHeatmap({
+    points,
+    width,
+    height,
+    colors: "viridis",
+    kernel: "bump",
+    method: "sum"
+  });
   fs.writeFileSync("viridis.png", buf);
- 
 })();
