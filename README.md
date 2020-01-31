@@ -257,12 +257,12 @@ Sums the values of all points.
 
 The first option for configuring the colormap is by chosing one of the default colors:
 
-| []() | | | |
-| --------------------------------------------- | ----------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
-| **teelights** default | **jet** | **parula** | **gray** |
-| ![teelights](doc/examples/teelights.png) | ![jet](doc/examples/jet.png) | ![parula](doc/examples/parula.png) | ![gray](doc/examples/gray.png) |
-| **magma** | **plasma** | **inferno** |  **viridis** |
-| ![magma](doc/examples/magma.png) | ![plasma](doc/examples/plasma.png) |  ![inferno](doc/examples/inferno.png) |![viridis](doc/examples/viridis.png) |
+| []()                                     |                                    |                                      |                                      |
+| ---------------------------------------- | ---------------------------------- | ------------------------------------ | ------------------------------------ |
+| **teelights** default                    | **jet**                            | **parula**                           | **gray**                             |
+| ![teelights](doc/examples/teelights.png) | ![jet](doc/examples/jet.png)       | ![parula](doc/examples/parula.png)   | ![gray](doc/examples/gray.png)       |
+| **magma**                                | **plasma**                         | **inferno**                          | **viridis**                          |
+| ![magma](doc/examples/magma.png)         | ![plasma](doc/examples/plasma.png) | ![inferno](doc/examples/inferno.png) | ![viridis](doc/examples/viridis.png) |
 
 The second option is an `Object` containing the following _properties_:
 
@@ -312,7 +312,7 @@ fs.writeFileSync("example4.png", buf);
 
 ![example4](doc/examples/example4.png)
 
-## Examples
+## More Examples
 
 | kernel       | max                                                    | nearest                                                        | shepards                                                         | sum                                                    |
 | ------------ | ------------------------------------------------------ | -------------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------ |
@@ -324,3 +324,21 @@ fs.writeFileSync("example4.png", buf);
 | linear       | ![max linear](doc/examples/max_linear.png)             | ![nearest_linear](doc/examples/nearest_linear.png)             | ![shepards_linear](doc/examples/shepards_linear.png)             | ![sum_linear](doc/examples/sum_linear.png)             |
 | polynomial   | ![max polynomial](doc/examples/max_polynomial.png)     | ![nearest_polynomial](doc/examples/nearest_polynomial.png)     | ![shepards_polynomial](doc/examples/shepards_polynomial.png)     | ![sum_polynomial](doc/examples/sum_polynomial.png)     |
 | step         | ![max step](doc/examples/max_step.png)                 | ![nearest_step](doc/examples/nearest_step.png)                 | ![shepards_step](doc/examples/shepards_step.png)                 | ![sum_step](doc/examples/sum_step.png)                 |
+
+## License
+
+> @luxedo/heatmap - Creates heatmaps from latitude and longitude data
+> Copyright (C) 2020 Luiz Eduardo Amaral
+>
+> This program is free software: you can redistribute it and/or modify
+> it under the terms of the GNU General Public License as published by
+> the Free Software Foundation, either version 3 of the License, or
+> (at your option) any later version.
+>
+> This program is distributed in the hope that it will be useful,
+> but WITHOUT ANY WARRANTY; without even the implied warranty of
+> MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+> GNU General Public License for more details.
+>
+> You should have received a copy of the GNU General Public License
+> along with this program. If not, see <https://www.gnu.org/licenses/>.

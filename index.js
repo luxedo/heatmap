@@ -309,9 +309,9 @@ function drawHeatData(heatData, canvas, colors) {
   const width = canvas.width;
   const height = canvas.height;
   const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingQuality = "high";
   const colormap = buildColormap(colors);
   let imgData = ctx.createImageData(width, height);
+
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;

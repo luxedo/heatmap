@@ -14,9 +14,18 @@
   "scripts": {
     "test": "mocha --reporter list"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/luxedo/heatmap"
+  },
+  "bin": {
+    "heatmap": "./bin/heatmap.js"
+  },
   "keywords": [
     "heatmap",
-    "image"
+    "image",
+    "server",
+    "render"
   ],
   "author": "Luiz Eduardo Amaral",
   "license": "GPL-3.0",
