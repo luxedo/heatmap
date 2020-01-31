@@ -120,19 +120,19 @@ const main = (() => {
       px: 10,
       py: 10,
       value: 1,
-      sigma: 30
+      sigma: 40
     },
     {
       px: 120,
       py: 30,
       value: 0.6,
-      sigma: 50
+      sigma: 60
     },
     {
       px: 70,
       py: 130,
       value: 0.2,
-      sigma: 70
+      sigma: 100
     }
   ];
   let width = 150;
@@ -181,6 +181,26 @@ const main = (() => {
   buf = retval.buf;
   fs.writeFileSync("example2.png", buf);
 
+  let colors = {
+    steps: 30,
+    values: ["#111122", "#44AA11", "#DDDDFF"],
+    weights: [1, 2, 3]
+  };
+  buf = heatmap.drawHeatmap({ points, width, height, colors });
+  fs.writeFileSync("example4.png", buf);
+
+
+  // Methods
+  buf = heatmap.drawHeatmap({ points, width, height, method: "max" });
+  fs.writeFileSync("max.png", buf);
+  buf = heatmap.drawHeatmap({ points, width, height, method: "nearest" });
+  fs.writeFileSync("nearest.png", buf);
+  buf = heatmap.drawHeatmap({ points, width, height, method: "shepards" });
+  fs.writeFileSync("shepards.png", buf);
+  buf = heatmap.drawHeatmap({ points, width, height, method: "sum" });
+  fs.writeFileSync("sum.png", buf);
+
+  // Kernels
   points = [
     {
       px: 75,
@@ -189,7 +209,7 @@ const main = (() => {
       radius: 70,
       omega: 10,
       epsilon: 0.05,
-      sigma: 50,
+      sigma: 50
     }
   ];
   buf = heatmap.drawHeatmap({ points, width, height, kernel: "bump" });
@@ -208,4 +228,24 @@ const main = (() => {
   fs.writeFileSync("polynomial.png", buf);
   buf = heatmap.drawHeatmap({ points, width, height, kernel: "step" });
   fs.writeFileSync("step.png", buf);
+
+  // Colors
+  buf = heatmap.drawHeatmap({ points, width, height, colors: 'teelights'});
+  fs.writeFileSync("teelights.png", buf);
+ 
+  buf = heatmap.drawHeatmap({ points, width, height, colors: 'jet', kernel: 'bump', method: 'sum'});
+  fs.writeFileSync("jet.png", buf);
+ 
+  buf = heatmap.drawHeatmap({ points, width, height, colors: 'parula'});
+  fs.writeFileSync("parula.png", buf);
+ 
+  buf = heatmap.drawHeatmap({ points, width, height, colors: 'gray'});
+  fs.writeFileSync("gray.png", buf);
+ 
+  buf = heatmap.drawHeatmap({ points, width, height, colors: 'magma'});
+  fs.writeFileSync("magma.png", buf);
+ 
+  buf = heatmap.drawHeatmap({ points, width, height, colors: 'viridis'});
+  fs.writeFileSync("viridis.png", buf);
+ 
 })();

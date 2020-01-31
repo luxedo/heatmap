@@ -2,7 +2,7 @@
 
 ## Usage
 
-### `drawHeatmap(points, width, height, [colors, cropPolygon, kernel, method, methodArgs]) => Buffer`
+### `drawHeatmap({points, width, height, [...args]}) ⇒ Buffer`
 
 Returns the `Buffer` of a `png` image of the heatmap. The `points` argument must be an `Array` containing the following properties: The center of the point `px`, `py`, The intensity of the point `value`. The range of values that makes the gradient are from 0 to 1, but it's possible to give values outside this range. Also, additional arguments can be given to overwrite the defaults for the _kernel_ configuration.
 
@@ -38,11 +38,11 @@ const buf = heatmap.drawHeatmap(points, width, height);
 fs.writeFileSync("example1.png", buf);
 ```
 
-#### Results
+##### example1.png
 
 ![example 1](doc/examples/example1.png)
 
-### `drawGeoHeatmap(geoCoords, geoPoints, (pxPerDeg, width, height), [colors, crop, kernel, method, methodArgs]) => {buf (Buffer), origin (Object), end (Object)}`
+### `drawGeoHeatmap({geoCoords, geoPoints, (pxPerDeg || (width | height)), [...args]}) ⇒ {buf (Buffer), origin (Object), end (Object)}`
 
 Returns an object with the `Buffer` (buf) of a `png` image of the heatmap, the northwestmost and southeastmost (origin, end) coordinates `{lat, lng}`. Inputs are `geoCoords` the boundaries of the image, an `Array` of coordinates `{lat, lng}`; and `geoPoints`, an `Array` of `{lat, lng, value}`, configuration is similar to `deawHeatmap`. One of: `pxPerDeg`, `width`, `height` must be provided.
 
@@ -83,34 +83,34 @@ const buf = heatmap.drawGeoHeatmap({ geoCoords, geoPoints, pxPerDeg, method });
 fs.writeFileSync("example2.png", buf);
 ```
 
-#### Results
+#### example2.png
 
 ![example 2](doc/examples/example2.png)
 
 #### Arguments
 
-##### `drawGeoHeatmap`:
+##### `drawHeatmap`:
 
 - `points`: `Array` of points to draw `[{px, py, value}]`.
 - `width`: width of the image.
 - `height`: height of the image.
-- `colors`: An `Object` for colormap configuration.
+- `colors`: Either an `Object` for colormap configuration, or a `String` of a default colormap. Options: `teelights`, `jet`, `parula`, `gray`, `magma`, `viridis`.
 - `cropPolygon`: `Array` of points `[{px, py}]` forming a polygon to crop the output image
-- `kernel`: The RBF kernel for computing the intensity of the heatmap . Options: `bump`, `cosine`, `dampedCosine`, `exponential`, `gaussian`. `linear`, `polynomial`, `step`.
-- `method`: The method for accumulating the intensities. Options: `max`, `nearest`, `shepards`, `sum`
+- `kernel`: The RBF kernel for computing the intensity of the heatmap. Options: `bump`, `cosine`, `dampedCosine`, `exponential`, `gaussian`. `linear`, `polynomial`, `step`.
+- `method`: The method for accumulating the intensities. Options: `max`, `nearest`, `shepards`, `sum`.
 - `methodArgs`: Additional arguments for the `method`.
 
-##### `drawHeatmap`:
+##### `drawGeoHeatmap`:
 
 - `geoCoords`: `Array` of coordinates `[{lat, lng}]` of the boundaries of the heatmap. May also be used with `crop` when passing more than three coordinates to select the polygon inside the coordinates.
 - `geoPoints`: `Array` of points to draw `[{lat, lng, value}]`.
 - `pxPerDeg`: Number of pixels per degree of latitude/longitude. To use this scaling mode neither `width` and `height` can be provided.
 - `width`: Forces the image to have a certain width. Can be used alongside with `height`.
 - `height`: Forces the image to have a certain height. Can be used alongside with `width`.
-- `colors`: An `Object` for colormap configuration.
+- `colors`: Either an `Object` for colormap configuration, or a `String` of a default colormap. Options: `teelights`, `jet`, `parula`, `gray`, `magma`, `viridis`.
 - `crop`: Crops the polygon of the boundaries gven in `geoCoords` if `true`.
 - `kernel`: The RBF kernel for computing the intensity of the heatmap . Options: `bump`, `cosine`, `dampedCosine`, `exponential`, `gaussian`. `linear`, `polynomial`, `step`.
-- `method`: The method for accumulating the intensities. Options: `max`, `nearest`, `shepards`, `sum`
+- `method`: The method for accumulating the intensities. Options: `max`, `nearest`, `shepards`, `sum`.
 - `methodArgs`: Additional arguments for the `method`.
 
 ### Command line
@@ -128,7 +128,13 @@ Options:
   --            Receives input from stdin and outputs to stdout
 
 Example:
-echo '{"points": [{"px": 10, "py": 10, "value": 1, "sigma": 30}, {"px": 120, "py": 30, "value": 0.6, "sigma": 50}, {"px": 70, "py": 130, "value": 0.2, "sigma": 70}], "width": 150, "height": 150, "method": "nearest"}' | bin/heatmap -- > example3.png
+echo '{"points": [{"px": 10, "py": 10, "value": 1, "sigma": 30},
+  {"px": 120, "py": 30, "value": 0.6, "sigma": 50},
+  {"px": 70, "py": 130, "value": 0.2, "sigma": 70}],
+  "width": 150,
+  "height": 150,
+  "method": "nearest"}' | bin/heatmap -- > example3.png
+
    See ... for configuration details.
 ```
 
@@ -158,42 +164,153 @@ Include the script from [jsDelivr](https://jsdelivr.com):
 
 There are 8 kernels used as [Radial Basis Functions](https://en.wikipedia.org/wiki/Radial_basis_function) for determining the intensity of each pixel in the heatmap:
 
-| []()                                      |                                         |                                               |                                              |
-| ----------------------------------------- | --------------------------------------- | --------------------------------------------- | -------------------------------------------- |
-| **bump**                                  | **cosine**                              | **dampedCosine**                              | **exponential**                              |
-| ![bump kernel](doc/examples/bump.png)     | ![bump kernel](doc/examples/cosine.png) | ![bump kernel](doc/examples/dampedCosine.png) | ![bump kernel](doc/examples/exponential.png) |
-| **gaussian**                              | **linear**                              | **polynomial**                                | **step**                                       |
-| ![bump kernel](doc/examples/gaussian.png) | ![bump kernel](doc/examples/linear.png) | ![bump kernel](doc/examples/polynomial.png)   | ![bump kernel](doc/examples/step.png)        |
+| []()                                          |                                           |                                                       |                                                     |
+| --------------------------------------------- | ----------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
+| **bump**                                      | **cosine**                                | **dampedCosine**                                      | **exponential**                                     |
+| ![bump kernel](doc/examples/bump.png)         | ![cosine kernel](doc/examples/cosine.png) | ![dampedCosine kernel](doc/examples/dampedCosine.png) | ![exponential kernel](doc/examples/exponential.png) |
+| **gaussian**                                  | **linear**                                | **polynomial** degree 2                               | **step**                                            |
+| ![gaussian kernel](doc/examples/gaussian.png) | ![linear kernel](doc/examples/linear.png) | ![polynomial kernel](doc/examples/polynomial.png)     | ![step kernel](doc/examples/step.png)               |
 
 ### bump
 
+##### arguments:
+
+- `radius`: Radius of the bump
+
 ### cosine
+
+##### arguments:
+
+- `omega`: Angular frequency
+- `phi`: Phase
 
 ### dampedCosine
 
+##### arguments:
+
+- `omega`: Angular frequency
+- `phi`: Phase
+- `epsilon`: Decay
+
 ### exponential
+
+##### arguments:
+
+- `epsilon`: Decay
 
 ### gaussian
 
+##### arguments:
+
+- `sigma`: Standard deviation
+
 ### linear
+
+##### arguments:
+
+- `epsilon`: Decay
 
 ### polynomial
 
+##### arguments:
+
+- `epsilon`: Decay
+- `degree`: Degree of the polynomial
+
 ### step
+
+##### arguments:
+
+- `radius`: Radius of the step
 
 ## Methods
 
+There are 4 methods for accumulating the values of the points
+
+| []()                                 |                                          |                                           |                                      |
+| ------------------------------------ | ---------------------------------------- | ----------------------------------------- | ------------------------------------ |
+| **max**                              | **nearest**                              | **shepards**                              | **sum**                              |
+| ![bump kernel](doc/examples/max.png) | ![bump kernel](doc/examples/nearest.png) | ![bump kernel](doc/examples/shepards.png) | ![bump kernel](doc/examples/sum.png) |
+
 ### max
+
+Gets the maximum value of any point
 
 ### nearest
 
+Gets the value for the nearest point
+
 ### shepards
+
+Computes a weighted sum of the points using a kernel.
+
+##### arguments:
+
+- `kernel`: Name of the kernel
+- `kernelArgs`: Extra arguments for the kernel
 
 ### sum
 
-### Custom method
+Sums the values of all points.
 
 ## Colors
+
+The first option for configuring the colormap is by chosing one of the default colors:
+
+| []() | | | |
+| --------------------------------------------- | ----------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
+| **teelights** default | **jet** | **parula** |
+| ![teelights](doc/examples/teelights.png) | ![jet](doc/examples/jet.png) | ![parula](doc/examples/parula.png) |
+| **gray** | **magma** | **viridis** |
+| ![gray](doc/examples/gray.png) | ![magma](doc/examples/magma.png) | ![viridis](doc/examples/viridis.png) |
+
+The second option for configuring the colormap is an `Object` containing the following _properties_:
+
+- `steps`: Number of colors for interpolation.
+- `colors`: An `Array` of the colors in the colormap in hex.
+- `weights`: An `Array` of weights for each color (optional).
+
+#### Example
+
+```javascript
+const fs = require("fs");
+const heatmap = require("@luxedo/heatmap");
+
+const points = [
+  {
+    px: 10,
+    py: 10,
+    value: 1,
+    sigma: 30
+  },
+  {
+    px: 120,
+    py: 30,
+    value: 0.6,
+    sigma: 50
+  },
+  {
+    px: 70,
+    py: 130,
+    value: 0.2,
+    sigma: 70
+  }
+];
+const width = 150;
+const height = 150;
+
+let colors = {
+  steps: 30,
+  values: ["#111122", "#44AA11", "#DDDDFF"],
+  weights: [1, 2, 3]
+};
+buf = heatmap.drawHeatmap({ points, width, height, colors });
+fs.writeFileSync("example4.png", buf);
+```
+
+#### example4.png
+
+![example4](doc/examples/example4.png)
 
 ## Examples
 

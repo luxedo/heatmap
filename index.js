@@ -27,6 +27,38 @@ exports.KERNEL_DEFAULTS = {
   phi: 0,
   radius: 100
 };
+exports.DEFAULT_COLORS = {
+  teelights: {
+    steps: 255,
+    values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
+    weights: [2, 3, 3, 2]
+  },
+  jet: {
+    steps: 255,
+    values: ["#000080", "#0000FF", "#00FFFF", "#00FF00", "#FFFF00", "#FF0000", "800000"],
+    weights: [1, 2, 2, 2, 2, 2, 1]
+  },
+  parula: {
+    steps: 100,
+    values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
+    weights: [2, 3, 3, 2]
+  },
+  gray: {
+    steps: 100,
+    values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
+    weights: [2, 3, 3, 2]
+  },
+  magma: {
+    steps: 100,
+    values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
+    weights: [2, 3, 3, 2]
+  },
+  viridis: {
+    steps: 100,
+    values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
+    weights: [2, 3, 3, 2]
+  }
+};
 exports.kernels = {
   gaussian: gaussianKernel,
   exponential: exponentialKernel,
@@ -63,8 +95,8 @@ exports.drawGeoHeatmap = ({
     width,
     height
   );
-  width = cWidth
-  height = cHeight
+  width = cWidth;
+  height = cHeight;
   crop = crop === true ? cropPolygon : null;
   const buf = exports.drawHeatmap({
     points,
@@ -93,12 +125,7 @@ exports.drawHeatmap = ({
   method = null,
   methodArgs = null
 }) => {
-  if (colors == null)
-    colors = {
-      steps: 100,
-      values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
-      weights: [2, 3, 3, 2]
-    };
+  if (colors == null) colors = "teelights";
   if (kernel == null) kernel = "gaussian";
   if (method == null) method = "shepards";
   if (methodArgs == null)
@@ -177,7 +204,7 @@ function convertData(geoCoords, geoPoints, pxPerDeg, width, height) {
     return Object.assign(item, {
       px: (item.lng - origin[0]) * cScale,
       py: cHeight - (item.lat - origin[1]) * cScale - offset,
-      value: item.value,
+      value: item.value
     });
   });
   return {
@@ -271,7 +298,7 @@ function drawHeatData(heatData, canvas, colors) {
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const i = (y * width + x) * 4;
-      let cIndex = Math.round(heatData[y][x] * colors.steps);
+      let cIndex = Math.round(heatData[y][x] * colormap.length);
       cIndex =
         cIndex < 0
           ? 0
@@ -289,18 +316,32 @@ function drawHeatData(heatData, canvas, colors) {
 }
 
 function buildColormap(colors) {
-  let colormap = [];
-  if (!colors.hasOwnProperty("weights")) {
-    colors.weights = new Array(colors.steps).fill(1);
+  let colorsObj;
+  if (typeof colors === "string" || colors instanceof String) {
+    if (Object.keys(exports.DEFAULT_COLORS).includes(colors)) {
+      colorsObj = exports.DEFAULT_COLORS[colors];
+    } else {
+      throw Error(
+        `Colors ${colors} not found. Chose one of ${Object.keys(
+          exports.DEFAULT_COLORS
+        ).join(", ")}`
+      );
+    }
+  } else {
+    colorsObj = JSON.parse(JSON.stringify(colors));
   }
-  const totalSteps = colors.weights.reduce((acc, cur) => acc + cur, 0);
-  const steps = colors.weights.map((val, idx) => {
-    return Math.ceil((val / totalSteps) * colors.steps);
+  let colormap = [];
+  if (!colorsObj.hasOwnProperty("weights")) {
+    colorsObj.weights = new Array(colorsObj.steps).fill(1);
+  }
+  const totalSteps = colorsObj.weights.reduce((acc, cur) => acc + cur, 0);
+  const steps = colorsObj.weights.map((val, idx) => {
+    return Math.ceil((val / totalSteps) * colorsObj.steps);
   });
-  for (let i = 0; i < colors.values.length - 1; i++) {
+  for (let i = 0; i < colorsObj.values.length - 1; i++) {
     const cmap = interpolateColors(
-      colors.values[i],
-      colors.values[i + 1],
+      colorsObj.values[i],
+      colorsObj.values[i + 1],
       Math.round(steps[i])
     );
     colormap = colormap.concat(cmap);

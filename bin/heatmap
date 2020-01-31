@@ -40,7 +40,13 @@ const args = require("yargs")
   .option("", {
     description: "Receives input from stdin and outputs to stdout"
   }).epilog(`Example:
-echo '{"points": [{"px": 10, "py": 10, "value": 1, "sigma": 30}, {"px": 120, "py": 30, "value": 0.6, "sigma": 50}, {"px": 70, "py": 130, "value": 0.2, "sigma": 70}], "width": 150, "height": 150, "method": "nearest"}' | bin/heatmap -- > example3.png
+echo '{"points": [{"px": 10, "py": 10, "value": 1, "sigma": 30}, 
+  {"px": 120, "py": 30, "value": 0.6, "sigma": 50}, 
+  {"px": 70, "py": 130, "value": 0.2, "sigma": 70}], 
+  "width": 150, 
+  "height": 150, 
+  "method": "nearest"}' | heatmap -- > example3.png
+
    See ... for configuration details.`).argv;
 
 const main = (() => {
