@@ -18,8 +18,22 @@
 const { createCanvas, Image } = require("canvas");
 const { hsluvToRgb, rgbToHsluv } = require("hsluv");
 
-/* EXPORTS */
-exports.KERNEL_DEFAULTS = {
+/* DEFAULTS */
+const DEFAULT_KERNEL = "gaussian";
+const DEFAULT_METHOD = "shepards";
+const DEFAULT_COLORS = "teelights";
+const DEFAULT_METHOD_ARGS = {
+  kernel: "polynomial",
+  kernelArgs: {
+    sigma: 100,
+    epsilon: 0.015,
+    degree: 5,
+    omega: 4,
+    phi: 0,
+    radius: 100
+  }
+};
+const DEFAULT_KERNEL_ARGS = {
   sigma: 150,
   epsilon: 0.005,
   degree: 2,
@@ -27,7 +41,9 @@ exports.KERNEL_DEFAULTS = {
   phi: 0,
   radius: 100
 };
-exports.DEFAULT_COLORS = {
+
+/* CONSTANTS EXPORTS */
+exports.colors = {
   teelights: {
     steps: 255,
     values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
@@ -87,6 +103,7 @@ exports.methods = {
   shepards: shepardsMethod // IDW
 };
 
+/* FUNCTION EXPORTS */
 exports.drawGeoHeatmap = ({
   geoCoords,
   geoPoints,
@@ -136,21 +153,10 @@ exports.drawHeatmap = ({
   method = null,
   methodArgs = null
 }) => {
-  if (colors == null) colors = "teelights";
-  if (kernel == null) kernel = "gaussian";
-  if (method == null) method = "shepards";
-  if (methodArgs == null)
-    methodArgs = {
-      kernel: "polynomial",
-      kernelArgs: {
-        sigma: 100,
-        epsilon: 0.015,
-        degree: 5,
-        omega: 4,
-        phi: 0,
-        radius: 100
-      }
-    };
+  if (colors == null) colors = DEFAULT_COLORS;
+  if (kernel == null) kernel = DEFAULT_KERNEL;
+  if (method == null) method = DEFAULT_METHOD;
+  if (methodArgs == null) methodArgs = DEFAULT_METHOD_ARGS;
   if (cropPolygon instanceof Array && cropPolygon.length < 3)
     throw new Error("You must provide a polygon in cropPolygon to crop");
 
@@ -235,7 +241,7 @@ function parseMethodArgs(methodArgs) {
     if (Object.keys(methodArgs).includes("kernelArgs")) {
       methodArgs.kernelArgs = fillDefaults(
         methodArgs.kernelArgs,
-        exports.KERNEL_DEFAULTS
+        DEFAULT_KERNEL_ARGS
       );
     } else {
       methodArgs.kernelArgs = {};
@@ -271,7 +277,7 @@ function interpolateData(
       `${method} not listed. Chose one of ${Object.keys(exports.methods)}`
     );
   points.forEach(item => {
-    item.kernelArgs = fillDefaults(item, exports.KERNEL_DEFAULTS);
+    item.kernelArgs = fillDefaults(item, DEFAULT_KERNEL_ARGS);
   });
 
   let heatData = [];
@@ -329,12 +335,12 @@ function drawHeatData(heatData, canvas, colors) {
 function buildColormap(colors) {
   let colorsObj;
   if (typeof colors === "string" || colors instanceof String) {
-    if (Object.keys(exports.DEFAULT_COLORS).includes(colors)) {
-      colorsObj = exports.DEFAULT_COLORS[colors];
+    if (Object.keys(exports.colors).includes(colors)) {
+      colorsObj = exports.colors[colors];
     } else {
       throw Error(
         `Colors ${colors} not found. Chose one of ${Object.keys(
-          exports.DEFAULT_COLORS
+          exports.colors
         ).join(", ")}`
       );
     }
