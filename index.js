@@ -123,15 +123,15 @@ exports.drawGeoHeatmap = ({
     width,
     height
   );
+
   width = cWidth;
   height = cHeight;
-  crop = crop === true ? cropPolygon : null;
   const buf = exports.drawHeatmap({
     points,
     width,
     height,
     colors,
-    crop,
+    cropPolygon: crop === true ? cropPolygon : null,
     kernel,
     method,
     methodArgs
@@ -158,7 +158,9 @@ exports.drawHeatmap = ({
   if (method == null) method = DEFAULT_METHOD;
   if (methodArgs == null) methodArgs = DEFAULT_METHOD_ARGS;
   if (cropPolygon instanceof Array && cropPolygon.length < 3)
-    throw new Error("You must provide a polygon in cropPolygon to crop");
+    throw new Error("You must provide a polygon in cropPolygon to crop the image");
+  if (points == null || width == null || height == null)
+    throw new Error("You must provide all of the following arguments to drawHeatmap: points, width, height.")
 
   methodArgs = parseMethodArgs(methodArgs);
   const heatData = interpolateData(

@@ -78,5 +78,6 @@
     "value": 0.8,
     "radius": 170
   }],
-  "crop": true
+  "crop": true,
+  "pxPerDeg": 200000
 }
