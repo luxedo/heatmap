@@ -47,7 +47,7 @@ echo '{"points": [{"px": 10, "py": 10, "value": 1, "sigma": 30},
   "height": 150, 
   "method": "nearest"}' | heatmap -- > example3.png
 
-   See ... for configuration details.`).argv;
+   See https://github.com/luxedo/heatmap for configuration details.`).argv;
 
 const main = (() => {
   let data;

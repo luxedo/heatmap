@@ -4,7 +4,7 @@
 
 ### `drawHeatmap({points, width, height, [...args]}) ⇒ Buffer`
 
-Returns the `Buffer` of a `png` image of the heatmap. The `points` argument must be an `Array` containing the following properties: The center of the point `px`, `py`, The intensity of the point `value`. The range of values that makes the gradient are from 0 to 1, but it's possible to give values outside this range. Also, additional arguments can be given to overwrite the defaults for the _kernel_ configuration.
+Returns the `Buffer` of a `png` image of the heatmap. The `points` argument must be an `Array` containing the following properties: The center of the point `px`, `py`, the intensity of the point `value`. The range of values that makes the gradient are from 0 to 1, but it's possible to give values outside this range. Also, additional arguments can be given to overwrite the defaults for the _kernel_ configuration.
 
 #### Example
 
@@ -44,7 +44,7 @@ fs.writeFileSync("example1.png", buf);
 
 ### `drawGeoHeatmap({geoCoords, geoPoints, (pxPerDeg || (width | height)), [...args]}) ⇒ {buf (Buffer), origin (Object), end (Object)}`
 
-Returns an object with the `Buffer` (buf) of a `png` image of the heatmap, the northwestmost and southeastmost (origin, end) coordinates `{lat, lng}`. Inputs are `geoCoords` the boundaries of the image, an `Array` of coordinates `{lat, lng}`; and `geoPoints`, an `Array` of `{lat, lng, value}`, configuration is similar to `deawHeatmap`. One of: `pxPerDeg`, `width`, `height` must be provided.
+Returns an object with the `Buffer` (buf) of a `png` image of the heatmap, the northwestmost and southeastmost (origin, end) coordinates `{lat, lng}`. Inputs are `geoCoords`, the boundaries of the image, an `Array` of coordinates `{lat, lng}`; and `geoPoints`, an `Array` of `{lat, lng, value}`, configuration is similar to `deawHeatmap`. One of: `pxPerDeg`, `width`, `height` must be provided.
 
 ```javascript
 const geoCoords = [
@@ -135,7 +135,7 @@ echo '{"points": [{"px": 10, "py": 10, "value": 1, "sigma": 30},
   "height": 150,
   "method": "nearest"}' | bin/heatmap -- > example3.png
 
-   See ... for configuration details.
+   See https://github.com/luxedo/heatmap for configuration details.
 ```
 
 #### example3.png
@@ -144,21 +144,13 @@ echo '{"points": [{"px": 10, "py": 10, "value": 1, "sigma": 30},
 
 ## Installation
 
-### Node
-
 Install via `npm`:
 
 ```bash
 $ npm install @luxedo/heatmap
 ```
 
-### Browser
-
-Include the script from [jsDelivr](https://jsdelivr.com):
-
-```html
-<script src="https://cdn.jsdelivr.net/npm/@luxedo/heatmap@1.0.0/heatmap.min.js"></script>
-```
+You need to have [Cairo](https://www.cairographics.org/) installed.
 
 ## Kernels
 
@@ -225,7 +217,7 @@ There are 8 kernels used as [Radial Basis Functions](https://en.wikipedia.org/wi
 
 ## Methods
 
-There are 4 methods for accumulating the values of the points
+There are 4 methods for accumulating the values of the points:
 
 | []()                                 |                                          |                                           |                                      |
 | ------------------------------------ | ---------------------------------------- | ----------------------------------------- | ------------------------------------ |
