@@ -1,8 +1,9 @@
 {
   "name": "@luxedo/heatmap",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Heatmap drawing tool",
   "main": "index.js",
+  "files": ["index.js"],
   "dependencies": {
     "canvas": "^2.6.1",
     "hsluv": "^0.1.0",

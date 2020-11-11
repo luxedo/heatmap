@@ -215,6 +215,18 @@ There are 8 kernels used as [Radial Basis Functions](https://en.wikipedia.org/wi
 
 - `radius`: Radius of the step
 
+## Geo Kernels
+Geo Kernels are meant to add consistency for geographical data heatmaps
+by using more intuitive arguments and scaling the kernels correctly.
+These kernels are avaliable only for `drawGeoHeatMap`:
+
+### geoGaussian
+
+##### arguments:
+
+- `radius`: Radius of the gaussian in meters
+
+
 ## Methods
 
 There are 4 methods for accumulating the values of the points:
