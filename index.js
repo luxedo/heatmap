@@ -187,12 +187,18 @@ exports.drawHeatmap = ({
     method,
     methodArgs
   );
-  // const canvas = createCanvas(width, height);
-  const image = new Jimp(width, height, 0xFF, function (err, image) {});
-  image = drawHeatData(heatData, image, colors);
+  let image = new Jimp(width, height, 0xFF, function (err, image) {});
+  let background = new Jimp(width, height, 0xFF, function (err, image) {});
+  
+  image = drawHeatData(heatData, image, colors, cropPolygon);
+  if(cropPolygon != null){
+    background = clipImg(background, cropPolygon)
+    background = background.composite(image, 0, 0)
+    background.write('background.png')
+  }
+
   image.write('heatmap.png');
-  // if (cropPolygon != null) clipImg(canvas, cropPolygon);
-  // return canvas.toBuffer("image/png", {});
+
 };
 
 function convertData(geoCoords, geoPoints, pxPerDeg, width, height) {
@@ -325,13 +331,11 @@ function euclideanDistance(x, y, px, py) {
   return Math.sqrt(euclideanDistanceSquared(x, y, px, py));
 }
 
-function drawHeatData(heatData, image, colors) {
+function drawHeatData(heatData, image, colors, cropPolygon) {
   const width = image.bitmap.width;
   const height = image.bitmap.height;
   const colormap = buildColormap(colors);
 
-  // for (let y = 0; y < height; y++) {
-  //   for (let x = 0; x < width; x++) {
   image.scan(0, 0, image.bitmap.width, image.bitmap.height, function(x, y, idx) {
     let cIndex = Math.round(heatData[y][x][0] * colormap.length);
     let alpha = Math.round(heatData[y][x][1] * 255)
@@ -345,10 +349,15 @@ function drawHeatData(heatData, image, colors) {
     this.bitmap.data[idx + 0] = color[0];
     this.bitmap.data[idx + 1] = color[1];
     this.bitmap.data[idx + 2] = color[2];
-    this.bitmap.data[idx + 3] = alpha;
+    if (cropPolygon == null)
+      this.bitmap.data[idx + 3] = alpha;
+    else{
+      if (!pointInPolygon(cropPolygon, [x,y]))
+        this.bitmap.data[idx + 3] = 0;
+      else
+        this.bitmap.data[idx + 3] = alpha;
+    }
   })
-    //   }
-  // }
   return image;
 }
 
@@ -419,19 +428,14 @@ function hexToRgbNorm(hex) {
 const degreesToRadians = (degrees) => (degrees * Math.PI) / 180;
 const radiansToDegrees = (radians) => (radians * 180) / Math.PI;
 
-// function clipImg(canvas, cropPolygon) {
-//   const ctx = canvas.getContext("2d");
-//   const dataURL = canvas.toDataURL("image/png");
-//   const image = new Image();
-//   image.src = dataURL;
-//   ctx.clearRect(0, 0, canvas.width, canvas.height);
-//   ctx.beginPath();
-//   ctx.moveTo(cropPolygon[0][0], cropPolygon[0][1]);
-//   cropPolygon.forEach((item) => ctx.lineTo(...item));
-//   ctx.fill();
-//   ctx.clip();
-//   ctx.drawImage(image, 0, 0);
-// }
+function clipImg(image, cropPolygon) {
+  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function(x, y, idx) {
+    if (!pointInPolygon(cropPolygon, [x,y])){
+      this.bitmap.data[idx + 3] = 0;
+    }
+  });
+  return image;
+}
 
 /* KERNELS */
 function gaussianKernel(r, { sigma }) {
@@ -547,3 +551,27 @@ function haversine(r, f1, f2, l1, l2) {
     )
   );
 }
+
+function pointInPolygon(polygon, point) {
+  /*
+   * Performs the even-odd-rule Algorithm (a raycasting algorithm) to find out whether a point is in a given polygon.
+   * This runs in O(n) where n is the number of edges of the polygon:
+   * https://www.algorithms-and-technologies.com/point_in_polygon/javascript
+   */
+  //A point is in a polygon if a line from the point to infinity crosses the polygon an odd number of times
+  let odd = false;
+  //For each edge (In this case for each point of the polygon and the previous one)
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; i++) {
+      //If a line from the point into infinity crosses this edge
+      if (((polygon[i][1] > point[1]) !== (polygon[j][1] > point[1])) // One point needs to be above, one below our y coordinate
+          // ...and the edge doesn't cross our Y corrdinate before our x coordinate (but between our x coordinate and infinity)
+          && (point[0] < ((polygon[j][0] - polygon[i][0]) * (point[1] - polygon[i][1]) / (polygon[j][1] - polygon[i][1]) + polygon[i][0]))) {
+          // Invert odd
+          odd = !odd;
+      }
+      j = i;
+
+  }
+  //If the number of crossings was odd, the point is in the polygon
+  return odd;
+};
