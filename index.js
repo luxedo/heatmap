@@ -15,13 +15,13 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-const { createCanvas, Image } = require("canvas");
 const { hsluvToRgb, rgbToHsluv } = require("hsluv");
+const Jimp = require("jimp");
 
 /* DEFAULTS */
 const DEFAULT_KERNEL = "gaussian";
 const DEFAULT_METHOD = "shepards";
-const DEFAULT_COLORS = "teelights";
+const DEFAULT_COLORS = "gyr";     // "Green-Yellow-Red"
 const DEFAULT_METHOD_ARGS = {
   kernel: "polynomial",
   kernelArgs: {
@@ -44,6 +44,10 @@ const DEFAULT_KERNEL_ARGS = {
 
 /* CONSTANTS EXPORTS */
 exports.colors = {
+  gyr: {
+    steps: 255,
+    values: ["#00FF00", "#FFFF00", "FF0000"]
+  },
   teelights: {
     steps: 255,
     values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
@@ -183,10 +187,12 @@ exports.drawHeatmap = ({
     method,
     methodArgs
   );
-  const canvas = createCanvas(width, height);
-  drawHeatData(heatData, canvas, colors);
-  if (cropPolygon != null) clipImg(canvas, cropPolygon);
-  return canvas.toBuffer("image/png", {});
+  // const canvas = createCanvas(width, height);
+  const image = new Jimp(width, height, 0xFF, function (err, image) {});
+  image = drawHeatData(heatData, image, colors);
+  image.write('heatmap.png');
+  // if (cropPolygon != null) clipImg(canvas, cropPolygon);
+  // return canvas.toBuffer("image/png", {});
 };
 
 function convertData(geoCoords, geoPoints, pxPerDeg, width, height) {
@@ -300,7 +306,7 @@ function interpolateData(
     for (let x = 0; x < width; x++) {
       const intensities = points.map((item) => {
         item.r = euclideanDistance(x, y, item.px, item.py);
-        item.w = exports.kernels[kernel](item.r, item.kernelArgs);
+        item.alpha = exports.kernels[kernel](item.r, item.kernelArgs);
         return item;
       });
       const value = exports.methods[method](intensities, methodArgs);
@@ -319,31 +325,31 @@ function euclideanDistance(x, y, px, py) {
   return Math.sqrt(euclideanDistanceSquared(x, y, px, py));
 }
 
-function drawHeatData(heatData, canvas, colors) {
-  const width = canvas.width;
-  const height = canvas.height;
-  const ctx = canvas.getContext("2d");
+function drawHeatData(heatData, image, colors) {
+  const width = image.bitmap.width;
+  const height = image.bitmap.height;
   const colormap = buildColormap(colors);
-  let imgData = ctx.createImageData(width, height);
 
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      let cIndex = Math.round(heatData[y][x] * colormap.length);
-      cIndex =
-        cIndex < 0
-          ? 0
-          : cIndex >= colormap.length
-          ? colormap.length - 1
-          : cIndex;
-      const color = colormap[cIndex];
-      imgData.data[i + 0] = color[0];
-      imgData.data[i + 1] = color[1];
-      imgData.data[i + 2] = color[2];
-      imgData.data[i + 3] = 255;
-    }
-  }
-  ctx.putImageData(imgData, 0, 0);
+  // for (let y = 0; y < height; y++) {
+  //   for (let x = 0; x < width; x++) {
+  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function(x, y, idx) {
+    let cIndex = Math.round(heatData[y][x][0] * colormap.length);
+    let alpha = Math.round(heatData[y][x][1] * 255)
+    cIndex =
+      cIndex < 0
+        ? 0
+        : cIndex >= colormap.length
+        ? colormap.length - 1
+        : cIndex;
+    const color = colormap[cIndex];
+    this.bitmap.data[idx + 0] = color[0];
+    this.bitmap.data[idx + 1] = color[1];
+    this.bitmap.data[idx + 2] = color[2];
+    this.bitmap.data[idx + 3] = alpha;
+  })
+    //   }
+  // }
+  return image;
 }
 
 function buildColormap(colors) {
@@ -413,19 +419,19 @@ function hexToRgbNorm(hex) {
 const degreesToRadians = (degrees) => (degrees * Math.PI) / 180;
 const radiansToDegrees = (radians) => (radians * 180) / Math.PI;
 
-function clipImg(canvas, cropPolygon) {
-  const ctx = canvas.getContext("2d");
-  const dataURL = canvas.toDataURL("image/png");
-  const image = new Image();
-  image.src = dataURL;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.beginPath();
-  ctx.moveTo(cropPolygon[0][0], cropPolygon[0][1]);
-  cropPolygon.forEach((item) => ctx.lineTo(...item));
-  ctx.fill();
-  ctx.clip();
-  ctx.drawImage(image, 0, 0);
-}
+// function clipImg(canvas, cropPolygon) {
+//   const ctx = canvas.getContext("2d");
+//   const dataURL = canvas.toDataURL("image/png");
+//   const image = new Image();
+//   image.src = dataURL;
+//   ctx.clearRect(0, 0, canvas.width, canvas.height);
+//   ctx.beginPath();
+//   ctx.moveTo(cropPolygon[0][0], cropPolygon[0][1]);
+//   cropPolygon.forEach((item) => ctx.lineTo(...item));
+//   ctx.fill();
+//   ctx.clip();
+//   ctx.drawImage(image, 0, 0);
+// }
 
 /* KERNELS */
 function gaussianKernel(r, { sigma }) {
@@ -486,8 +492,10 @@ function shepardsMethod(points, { kernel }) {
         return item;
       })
       .reduce((acc, item) => {
-        return acc + (item.value * item.w * item.ws) / sigmaWs;
-      }, 0) || 0
+        acc[0] = acc[0] + (item.value * item.ws) / sigmaWs;
+        acc[1] = acc[1] + (item.alpha * item.ws) / sigmaWs;
+        return acc;
+      }, [0,0]) || 0
   );
 }
 

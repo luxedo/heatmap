@@ -3,10 +3,12 @@
   "version": "1.1.0",
   "description": "Heatmap drawing tool",
   "main": "index.js",
-  "files": ["index.js"],
+  "files": [
+    "index.js"
+  ],
   "dependencies": {
-    "canvas": "^2.6.1",
     "hsluv": "^0.1.0",
+    "jimp": "^0.16.1",
     "yargs": "^15.4.1"
   },
   "devDependencies": {
