@@ -108,7 +108,7 @@ exports.methods = {
 };
 
 /* FUNCTION EXPORTS */
-exports.drawGeoHeatmap = ({
+exports.drawGeoHeatmap = async({
   geoCoords,
   geoPoints,
   pxPerDeg = null,
@@ -138,7 +138,7 @@ exports.drawGeoHeatmap = ({
       return item;
     });
   }
-  const buf = exports.drawHeatmap({
+  const buf = await exports.drawHeatmap({
     points,
     width,
     height,
@@ -155,7 +155,7 @@ exports.drawGeoHeatmap = ({
   };
 };
 
-exports.drawHeatmap = ({
+exports.drawHeatmap = async ({
   points,
   width,
   height,
@@ -187,18 +187,20 @@ exports.drawHeatmap = ({
     method,
     methodArgs
   );
-  let image = new Jimp(width, height, 0xFF, function (err, image) {});
-  let background = new Jimp(width, height, 0xFF, function (err, image) {});
+  let image = new Jimp(width, height, 0xFFFFFFFF, function (err, image) {});
   
-  image = drawHeatData(heatData, image, colors, cropPolygon);
-  if(cropPolygon != null){
-    background = clipImg(background, cropPolygon)
-    background = background.composite(image, 0, 0)
-    background.write('background.png')
+  if (points.length > 0){
+    image = drawHeatData(heatData, image, colors, cropPolygon);
+    
+    if(cropPolygon != null){
+      let background = new Jimp(width, height, 0xFF, function (err, image) {});
+      background = clipImg(background, cropPolygon)
+      background = background.composite(image, 0, 0)
+      background.write('background.png')
+    }
   }
 
-  image.write('heatmap.png');
-
+  return await image.getBufferAsync(Jimp.MIME_PNG);
 };
 
 function convertData(geoCoords, geoPoints, pxPerDeg, width, height) {
@@ -335,7 +337,6 @@ function drawHeatData(heatData, image, colors, cropPolygon) {
   const width = image.bitmap.width;
   const height = image.bitmap.height;
   const colormap = buildColormap(colors);
-
   image.scan(0, 0, image.bitmap.width, image.bitmap.height, function(x, y, idx) {
     let cIndex = Math.round(heatData[y][x][0] * colormap.length);
     let alpha = Math.round(heatData[y][x][1] * 255)
@@ -472,18 +473,23 @@ function bumpKernel(r, { radius }) {
 
 /* METHODS */
 function sumMethod(points) {
-  return points.reduce((acc, item) => acc + item.value * item.w, 0);
+  return points.reduce((acc, item) => { 
+    acc[0] = acc[0] + item.value
+    acc[1] = acc[1] + item.alpha
+    return acc
+    // acc + item.value * item.w
+  }, [0,0]);
 }
 
 function maxMethod(points) {
-  return Math.max(...points.map((item) => item.value * item.w).concat([0]));
+  return [Math.max(...points.map((item) => item.value * item.alpha).concat([0])), 1];
 }
 
 function nearestMethod(points) {
   const item = points.reduce((acc, item) => {
-    return item.r <= acc.r && item.w > 0 ? item : acc;
+    return item.r <= acc.r && item.alpha > 0 ? item : acc;
   });
-  return item.value * item.w;
+  return [item.value * item.alpha, 1];
 }
 
 function shepardsMethod(points, { kernel }) {

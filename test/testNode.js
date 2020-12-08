@@ -23,8 +23,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 const fs = require("fs");
+const Jimp = require("jimp");
 const { expect } = require("chai");
-const { createCanvas, Image } = require("canvas");
 const heatmap = require("@luxedo/heatmap");
 const OUTPUT_FOLDER = "test/output/";
 
@@ -33,15 +33,15 @@ describe("@luxedo/heatmap", () => {
     const data = JSON.parse(fs.readFileSync("test/testHeatmap.json"));
 
     // Simple tests
-    it("should return an image buffer", () => {
-      const buf = heatmap.drawHeatmap(data);
+    it("should return an image buffer", async () => {
+      const buf = await heatmap.drawHeatmap(data);
       expect(buf).to.be.instanceof(Buffer);
     });
-    it("should return an all white image when not passing points", () => {
+    it("should return an all white image when not passing points", async () => {
       const data2 = deepCopy(data);
       data2.points = [];
-      const buf = heatmap.drawHeatmap(data2);
-      const imgData = bufToImgData(buf);
+      const buf = await heatmap.drawHeatmap(data2);
+      const imgData = await bufToImgData(buf);
       for (let i = 0; i < imgData.data.length; i += 4) {
         const px = [
           imgData.data[i + 0],
@@ -49,10 +49,10 @@ describe("@luxedo/heatmap", () => {
           imgData.data[i + 2],
           imgData.data[i + 3]
         ];
-        expect(px).to.eql([254, 255, 254, 255]);
+        expect(px).to.eql([255, 255, 255, 255]);
       }
     });
-    it("should return an all red image when passing a huge point", () => {
+    it("should return an all red image when passing a huge point", async () => {
       const points2 = deepCopy([data.points[0]]);
       points2[0].value = 1;
       points2[0].radius = 10000;
@@ -60,8 +60,8 @@ describe("@luxedo/heatmap", () => {
       data2.points = points2;
       data2.kernel = "step";
       data2.method = "sum";
-      const buf = heatmap.drawHeatmap(data2);
-      const imgData = bufToImgData(buf);
+      const buf = await heatmap.drawHeatmap(data2);
+      const imgData = await bufToImgData(buf);
       for (let i = 0; i < imgData.data.length; i += 4) {
         const px = [
           imgData.data[i + 0],
@@ -76,11 +76,11 @@ describe("@luxedo/heatmap", () => {
     // Kernels and methods tests
     Object.entries(heatmap.kernels).forEach(([k, kernel]) => {
       Object.entries(heatmap.methods).forEach(([m, method]) => {
-        it(`Should return a buffer for kernel: ${k} and method: ${m} `, () => {
+        it(`Should return a buffer for kernel: ${k} and method: ${m} `, async () => {
           const data2 = deepCopy(data);
           data2.kernel = k;
           data2.method = m;
-          const buf = heatmap.drawHeatmap(data2);
+          const buf = await heatmap.drawHeatmap(data2);
           const filename = `${OUTPUT_FOLDER}${m}_${k}.png`;
           expect(buf).to.be.instanceof(Buffer);
           fs.writeFile(filename, buf, () => {});
@@ -91,36 +91,34 @@ describe("@luxedo/heatmap", () => {
 });
 
 describe("@luxedo/heatmap", () => {
-  describe("drawGeoHeatmap", () => {
+  describe("drawGeoHeatmap", async () => {
     const data = JSON.parse(fs.readFileSync("test/testLocation.json"));
     // Scale, width and height tests
-    it("should return an image buffer and two coordinates", () => {
+    it("should return an image buffer and two coordinates", async () => {
       const data2 = deepCopy(data);
       data2.pxPerDeg = 10000;
-      const { buf, origin, end } = heatmap.drawGeoHeatmap(data2);
+      const { buf, origin, end } = await heatmap.drawGeoHeatmap(data2);
       expect(buf).to.be.instanceof(Buffer);
       expect(origin).to.have.length(2);
       expect(end).to.have.length(2);
     });
-    it("should return an image with fixed width when passing widht as argument", () => {
+    it("should return an image with fixed width when passing widht as argument", async () => {
       const data2 = deepCopy(data);
       const width = 200;
       data2.width = width;
       data2.pxPerDeg = null;
-      const { buf } = heatmap.drawGeoHeatmap(data2);
-      const img = new Image();
-      img.src = buf;
-      expect(img.width).to.equal(width);
+      const { buf } = await heatmap.drawGeoHeatmap(data2);
+      const imgData = await bufToImgData(buf);
+      expect(imgData.width).to.equal(width);
     });
-    it("should return an image with fixed height when passing height as argument", () => {
+    it("should return an image with fixed height when passing height as argument", async () => {
       const data2 = deepCopy(data);
       const height = 200;
       data2.height = height;
       data2.pxPerDeg = null;
-      const { buf } = heatmap.drawGeoHeatmap(data2);
-      const img = new Image();
-      img.src = buf;
-      expect(img.height).to.equal(height);
+      const { buf } = await heatmap.drawGeoHeatmap(data2);
+      const imgData = await bufToImgData(buf);
+      expect(imgData.height).to.equal(height);
     });
   });
 });
@@ -129,11 +127,7 @@ function deepCopy(object) {
   return JSON.parse(JSON.stringify(object));
 }
 
-function bufToImgData(buffer) {
-  const img = new Image();
-  img.src = buffer;
-  const canvas = createCanvas(img.width, img.height);
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(img, 0, 0);
-  return ctx.getImageData(0, 0, img.width, img.height);
+async function bufToImgData(buffer) {
+  const img = await Jimp.read(buffer);
+  return img.bitmap;
 }
