@@ -26,8 +26,8 @@ const DEFAULT_METHOD_ARGS = {
   kernel: "polynomial",
   kernelArgs: {
     sigma: 100,
-    epsilon: 0.015,
-    degree: 5,
+    epsilon: 0.5,
+    degree: 3,
     omega: 4,
     phi: 0,
     radius: 100,
@@ -46,7 +46,7 @@ const DEFAULT_KERNEL_ARGS = {
 exports.colors = {
   gyr: {
     steps: 255,
-    values: ["#00FF00", "#FFFF00", "FF0000"]
+    values: ["#00FF00", "#D8D800", "FF0000"]
   },
   teelights: {
     steps: 255,
@@ -474,22 +474,26 @@ function bumpKernel(r, { radius }) {
 /* METHODS */
 function sumMethod(points) {
   return points.reduce((acc, item) => { 
-    acc[0] = acc[0] + item.value
+    acc[0] = acc[0] + item.value * item.alpha
     acc[1] = acc[1] + item.alpha
+    acc[0] = acc[0] > 1 ? 1 : acc[0]
+    acc[1] = acc[1] > 1 ? 1 : acc[1] 
     return acc
-    // acc + item.value * item.w
   }, [0,0]);
 }
 
 function maxMethod(points) {
-  return [Math.max(...points.map((item) => item.value * item.alpha).concat([0])), 1];
+  const item = points.reduce((acc, item) => {
+    return item.value > acc.value && item.alpha > 0 ? item : acc;
+  }, {value: 0, alpha: 0});
+  return [item.value, 1];
 }
 
 function nearestMethod(points) {
   const item = points.reduce((acc, item) => {
-    return item.r <= acc.r && item.alpha > 0 ? item : acc;
+    return item.r <= acc.r ? item : acc;
   });
-  return [item.value * item.alpha, 1];
+  return [item.value, item.alpha];
 }
 
 function shepardsMethod(points, { kernel }) {
