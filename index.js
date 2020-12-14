@@ -21,7 +21,7 @@ const Jimp = require("jimp");
 /* DEFAULTS */
 const DEFAULT_KERNEL = "gaussian";
 const DEFAULT_METHOD = "shepards";
-const DEFAULT_COLORS = "gyr";     // "Green-Yellow-Red"
+const DEFAULT_COLORS = "gyr"; // "Green-Yellow-Red"
 const DEFAULT_METHOD_ARGS = {
   kernel: "polynomial",
   kernelArgs: {
@@ -46,7 +46,7 @@ const DEFAULT_KERNEL_ARGS = {
 exports.colors = {
   gyr: {
     steps: 255,
-    values: ["#00FF00", "#DADA00", "FF0000"]
+    values: ["#00FF00", "#DADA00", "FF0000"],
   },
   teelights: {
     steps: 255,
@@ -108,7 +108,7 @@ exports.methods = {
 };
 
 /* FUNCTION EXPORTS */
-exports.drawGeoHeatmap = async({
+exports.drawGeoHeatmap = async ({
   geoCoords,
   geoPoints,
   pxPerDeg = null,
@@ -187,22 +187,10 @@ exports.drawHeatmap = async ({
     method,
     methodArgs
   );
-  let image = new Jimp(width, height, 0xFFFFFFFF, function (err, image) {});
-  
-  if (points.length > 0){
-    image = drawHeatData(heatData, image, colors, cropPolygon);
-    
-    if(cropPolygon != null){
-      let background = new Jimp(width, height, 0xFF, function (err, image) {});
-      background = clipImg(background, cropPolygon)
-      background = background.composite(image, 0, 0)
-      background.write('black.png')
+  let image = new Jimp(width, height, 0xffffffff, function (err, image) {});
 
-      background = new Jimp(width, height, 0x0, function (err, image) {});
-      background = clipImg(background, cropPolygon)
-      background = background.composite(image, 0, 0)
-      background.write('transparent.png')
-    }
+  if (points.length > 0) {
+    image = drawHeatData(heatData, image, colors, cropPolygon);
   }
 
   return await image.getBufferAsync(Jimp.MIME_PNG);
@@ -342,28 +330,25 @@ function drawHeatData(heatData, image, colors, cropPolygon) {
   const width = image.bitmap.width;
   const height = image.bitmap.height;
   const colormap = buildColormap(colors);
-  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function(x, y, idx) {
+  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function (
+    x,
+    y,
+    idx
+  ) {
     let cIndex = Math.round(heatData[y][x][0] * colormap.length);
-    let alpha = Math.round(heatData[y][x][1] * 255)
+    let alpha = Math.round(heatData[y][x][1] * 255);
     cIndex =
-      cIndex < 0
-        ? 0
-        : cIndex >= colormap.length
-        ? colormap.length - 1
-        : cIndex;
+      cIndex < 0 ? 0 : cIndex >= colormap.length ? colormap.length - 1 : cIndex;
     const color = colormap[cIndex];
     this.bitmap.data[idx + 0] = color[0];
     this.bitmap.data[idx + 1] = color[1];
     this.bitmap.data[idx + 2] = color[2];
-    if (cropPolygon == null)
-      this.bitmap.data[idx + 3] = alpha;
-    else{
-      if (!pointInPolygon(cropPolygon, [x,y]))
-        this.bitmap.data[idx + 3] = 0;
-      else
-        this.bitmap.data[idx + 3] = alpha;
+    if (cropPolygon == null) this.bitmap.data[idx + 3] = alpha;
+    else {
+      if (!pointInPolygon(cropPolygon, [x, y])) this.bitmap.data[idx + 3] = 0;
+      else this.bitmap.data[idx + 3] = alpha;
     }
-  })
+  });
   return image;
 }
 
@@ -435,8 +420,12 @@ const degreesToRadians = (degrees) => (degrees * Math.PI) / 180;
 const radiansToDegrees = (radians) => (radians * 180) / Math.PI;
 
 function clipImg(image, cropPolygon) {
-  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function(x, y, idx) {
-    if (!pointInPolygon(cropPolygon, [x,y])){
+  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function (
+    x,
+    y,
+    idx
+  ) {
+    if (!pointInPolygon(cropPolygon, [x, y])) {
       this.bitmap.data[idx + 3] = 0;
     }
   });
@@ -478,19 +467,25 @@ function bumpKernel(r, { radius }) {
 
 /* METHODS */
 function sumMethod(points) {
-  return points.reduce((acc, item) => { 
-    acc[0] = acc[0] + item.value * item.alpha
-    acc[1] = acc[1] + item.alpha
-    acc[0] = acc[0] > 1 ? 1 : acc[0]
-    acc[1] = acc[1] > 1 ? 1 : acc[1] 
-    return acc
-  }, [0,0]);
+  return points.reduce(
+    (acc, item) => {
+      acc[0] = acc[0] + item.value * item.alpha;
+      acc[1] = acc[1] + item.alpha;
+      acc[0] = acc[0] > 1 ? 1 : acc[0];
+      acc[1] = acc[1] > 1 ? 1 : acc[1];
+      return acc;
+    },
+    [0, 0]
+  );
 }
 
 function maxMethod(points) {
-  const item = points.reduce((acc, item) => {
-    return item.value > acc.value && item.alpha > 0 ? item : acc;
-  }, {value: 0, alpha: 0});
+  const item = points.reduce(
+    (acc, item) => {
+      return item.value > acc.value && item.alpha > 0 ? item : acc;
+    },
+    { value: 0, alpha: 0 }
+  );
   return [item.value, 1];
 }
 
@@ -510,11 +505,14 @@ function shepardsMethod(points, { kernel }) {
         sigmaWs += item.ws;
         return item;
       })
-      .reduce((acc, item) => {
-        acc[0] = acc[0] + (item.value * item.ws) / sigmaWs;
-        acc[1] = acc[1] + (item.alpha * item.ws) / sigmaWs;
-        return acc;
-      }, [0,0]) || 0
+      .reduce(
+        (acc, item) => {
+          acc[0] = acc[0] + (item.value * item.ws) / sigmaWs;
+          acc[1] = acc[1] + (item.alpha * item.ws) / sigmaWs;
+          return acc;
+        },
+        [0, 0]
+      ) || 0
   );
 }
 
@@ -577,16 +575,20 @@ function pointInPolygon(polygon, point) {
   let odd = false;
   //For each edge (In this case for each point of the polygon and the previous one)
   for (let i = 0, j = polygon.length - 1; i < polygon.length; i++) {
-      //If a line from the point into infinity crosses this edge
-      if (((polygon[i][1] > point[1]) !== (polygon[j][1] > point[1])) // One point needs to be above, one below our y coordinate
-          // ...and the edge doesn't cross our Y corrdinate before our x coordinate (but between our x coordinate and infinity)
-          && (point[0] < ((polygon[j][0] - polygon[i][0]) * (point[1] - polygon[i][1]) / (polygon[j][1] - polygon[i][1]) + polygon[i][0]))) {
-          // Invert odd
-          odd = !odd;
-      }
-      j = i;
-
+    //If a line from the point into infinity crosses this edge
+    if (
+      polygon[i][1] > point[1] !== polygon[j][1] > point[1] && // One point needs to be above, one below our y coordinate
+      // ...and the edge doesn't cross our Y corrdinate before our x coordinate (but between our x coordinate and infinity)
+      point[0] <
+        ((polygon[j][0] - polygon[i][0]) * (point[1] - polygon[i][1])) /
+          (polygon[j][1] - polygon[i][1]) +
+          polygon[i][0]
+    ) {
+      // Invert odd
+      odd = !odd;
+    }
+    j = i;
   }
   //If the number of crossings was odd, the point is in the polygon
   return odd;
-};
+}
