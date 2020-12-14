@@ -279,7 +279,7 @@ const fmc = {
   crop: true,
   methodArgs: {
     kernel: "polynomial",
-    kernelArgs: { epsilon: 0.015, degree: 5 },
+    kernelArgs: { epsilon: 0.035, degree: 2 },
   },
 };
 
@@ -290,9 +290,84 @@ const height = 500;
 // const talhosoH = hm.drawGeoHeatmap(talhoso);
 // fs.writeFileSync("talhosoMeters.png", talhosoH.buf);
 
+const teste = {
+  "colors": {
+      "steps": 255,
+      "values": [
+          "#47ff47",
+          "#00FF00",
+          "#e0e000",
+          "#FF0000"
+      ],
+      "weights": [
+          2,
+          3,
+          3,
+          2
+      ]
+  },
+  "geoCoords": [
+      {
+          "lat": -13.737301596073172,
+          "id": "6cm0C8pmmD98ylJvSjMi",
+          "lng": -58.87535016671439
+      },
+      {
+          "id": "7imxDsWg9cmrnWiOfOqv",
+          "lng": -58.85922840723653,
+          "lat": -13.735386545740523
+      },
+      {
+          "id": "2Nc9owzFdzcZt1PUQZJq",
+          "lng": -58.86298752399622,
+          "lat": -13.72671290506177
+      },
+      {
+          "id": "BKQzoVj59JRQA0xKm66u",
+          "lng": -58.880312627836936,
+          "lat": -13.728797367435883
+      },
+      {
+          "lat": -13.729105259209414,
+          "lng": -58.88131130408384,
+          "id": "hKrf5NZkwzkDJhpBH6pU"
+      }
+  ],
+  "geoPoints": [
+      {
+          "lat": -13.726838,
+          "lng": -58.863105,
+          "radius": 800,
+          "value": 0.3
+      },
+      {
+          "lat": -13.728163,
+          "lng": -58.874338,
+          "radius": 800,
+          "value": 1
+      },
+      {
+          "lat": -13.735307,
+          "lng": -58.859371,
+          "radius": 800,
+          "value": 1
+      }
+  ],
+  "height": 500,
+  "method": "shepards",
+  "kernel": "geoGaussian",
+  "crop": true,
+  "methodArgs": {
+      "kernel": "polynomial",
+      "kernelArgs": {
+          "epsilon": 0.03,
+          "degree": 2
+      }
+  }
+}
 
-
-const fmcH = hm.drawGeoHeatmap(fmc);
+const testH = hm.drawGeoHeatmap(teste)
+// const fmcH = hm.drawGeoHeatmap(fmc);
 // fs.writeFileSync("fmcMeters05.png", fmcH.buf);
 // fs.writeFileSync("fmcMeters07.png", fmcH.buf);
 

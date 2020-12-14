@@ -46,7 +46,7 @@ const DEFAULT_KERNEL_ARGS = {
 exports.colors = {
   gyr: {
     steps: 255,
-    values: ["#00FF00", "#D8D800", "FF0000"]
+    values: ["#00FF00", "#DADA00", "FF0000"]
   },
   teelights: {
     steps: 255,
@@ -196,7 +196,12 @@ exports.drawHeatmap = async ({
       let background = new Jimp(width, height, 0xFF, function (err, image) {});
       background = clipImg(background, cropPolygon)
       background = background.composite(image, 0, 0)
-      background.write('background.png')
+      background.write('black.png')
+
+      background = new Jimp(width, height, 0x0, function (err, image) {});
+      background = clipImg(background, cropPolygon)
+      background = background.composite(image, 0, 0)
+      background.write('transparent.png')
     }
   }
 
