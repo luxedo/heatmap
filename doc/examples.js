@@ -198,6 +198,9 @@ const main = (() => {
   fs.writeFileSync("shepards.png", buf);
   buf = heatmap.drawHeatmap({ points, width, height, method: "sum" });
   fs.writeFileSync("sum.png", buf);
+  buf = heatmap.drawHeatmap({ points, width, height, method: "alphaShepards" });
+  fs.writeFileSync("alphaShepards.png", buf);
+
 
   // Kernels
   points = [

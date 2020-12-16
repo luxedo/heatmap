@@ -15,25 +15,26 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
-const { createCanvas, Image } = require("canvas");
 const { hsluvToRgb, rgbToHsluv } = require("hsluv");
+const Jimp = require("jimp");
 
 /* DEFAULTS */
 const DEFAULT_KERNEL = "gaussian";
 const DEFAULT_METHOD = "shepards";
-const DEFAULT_COLORS = "teelights";
+const DEFAULT_COLORS = "gyr"; // "Green-Yellow-Red"
 const DEFAULT_METHOD_ARGS = {
   kernel: "polynomial",
   kernelArgs: {
     sigma: 100,
-    epsilon: 0.015,
-    degree: 5,
+    epsilon: 0.5,
+    degree: 3,
     omega: 4,
     phi: 0,
     radius: 100,
   },
 };
 const DEFAULT_KERNEL_ARGS = {
+  alpha: 1,
   sigma: 150,
   epsilon: 0.005,
   degree: 2,
@@ -44,6 +45,10 @@ const DEFAULT_KERNEL_ARGS = {
 
 /* CONSTANTS EXPORTS */
 exports.colors = {
+  gyr: {
+    steps: 255,
+    values: ["#00FF00", "#DADA00", "FF0000"],
+  },
   teelights: {
     steps: 255,
     values: ["#FEFFFE", "#00FF00", "#FFFF00", "#FF0000"],
@@ -95,16 +100,18 @@ exports.kernels = {
   dampedCosine: dampedCosineKernel,
   step: stepKernel,
   bump: bumpKernel,
+  sigmoidBorder: sigmoidBorderKernel,
 };
 exports.methods = {
   sum: sumMethod,
   max: maxMethod,
   nearest: nearestMethod,
   shepards: shepardsMethod, // IDW
+  alphaShepards: alphaShepardsMethod, // IDW
 };
 
 /* FUNCTION EXPORTS */
-exports.drawGeoHeatmap = ({
+exports.drawGeoHeatmap = async ({
   geoCoords,
   geoPoints,
   pxPerDeg = null,
@@ -130,11 +137,19 @@ exports.drawGeoHeatmap = ({
   if (kernel == "geoGaussian") {
     kernel = "gaussian";
     geoPoints = geoPoints.map((item) => {
-      item.sigma = metersTosigma(item.radius || 100, height, geoCoords);
+      item.sigma = metersToSigma(item.radius || 100, height, geoCoords);
+      return item;
+    });
+  } else if (kernel == "geoSigmoidBorder") {
+    kernel = "sigmoidBorder";
+    geoPoints = geoPoints.map((item) => {
+      const pxRadius = metersToPixels(item.radius || 100, height, geoCoords);
+      item.epsilon *= item.radius / pxRadius;
+      item.radius = pxRadius;
       return item;
     });
   }
-  const buf = exports.drawHeatmap({
+  const buf = await exports.drawHeatmap({
     points,
     width,
     height,
@@ -144,14 +159,26 @@ exports.drawGeoHeatmap = ({
     method,
     methodArgs,
   });
+
+  const lats = geoCoords.map((item) => item.lat);
+  const y0 = Math.min(...lats);
+  const y1 = Math.max(...lats);
+  const heightM = latToMeters(geoCoords);
+  const heightPx = height;
+  const heightDeg = y1 - y0;
   return {
     buf,
     origin,
     end,
+    height: {
+      heightM,
+      heightPx,
+      heightDeg,
+    },
   };
 };
 
-exports.drawHeatmap = ({
+exports.drawHeatmap = async ({
   points,
   width,
   height,
@@ -173,20 +200,59 @@ exports.drawHeatmap = ({
     throw new Error(
       "You must provide all of the following arguments to drawHeatmap: points, width, height."
     );
-
+  if (!(kernel in exports.kernels))
+    throw new Error(
+      `${kernel} not listed. Chose one of ${Object.keys(exports.kernels)}`
+    );
+  if (!(method in exports.methods))
+    throw new Error(
+      `${method} not listed. Chose one of ${Object.keys(exports.methods)}`
+    );
+  points.forEach((item) => {
+    item.kernelArgs = fillKernelDefaults(item, DEFAULT_KERNEL_ARGS);
+  });
   methodArgs = parseMethodArgs(methodArgs);
-  const heatData = interpolateData(
-    points,
-    width,
-    height,
-    kernel,
-    method,
-    methodArgs
-  );
-  const canvas = createCanvas(width, height);
-  drawHeatData(heatData, canvas, colors);
-  if (cropPolygon != null) clipImg(canvas, cropPolygon);
-  return canvas.toBuffer("image/png", {});
+
+  let image = new Jimp(width, height, 0xffffffff, function (err, image) {});
+  if (points.length > 0) {
+    const colormap = buildColormap(colors);
+    image.scan(0, 0, width, height, function (x, y, idx) {
+      if (cropPolygon && !pointInPolygon(cropPolygon, [x, y])) {
+        this.bitmap.data[idx + 3] = 0;
+        return;
+      }
+      const intensities = points.map((item) => {
+        const r = euclideanDistance(x, y, item.px, item.py);
+        const w = exports.kernels[kernel](r, item.kernelArgs);
+        return {
+          r,
+          w,
+          value: item.value,
+        };
+      });
+      let value = exports.methods[method](intensities, methodArgs);
+      let confidence = 255;
+      if (!(typeof value === "number" && isFinite(value))) {
+        confidence = value.confidence;
+        value = value.value;
+        confidence *= 255;
+        confidence = confidence > 255 ? 255 : confidence;
+      }
+      let colorIndex = Math.round(value * colormap.length);
+      colorIndex =
+        colorIndex < 0
+          ? 0
+          : colorIndex >= colormap.length
+          ? colormap.length - 1
+          : colorIndex;
+      const color = colormap[colorIndex];
+      this.bitmap.data[idx + 0] = color[0];
+      this.bitmap.data[idx + 1] = color[1];
+      this.bitmap.data[idx + 2] = color[2];
+      this.bitmap.data[idx + 3] = confidence;
+    });
+  }
+  return await image.getBufferAsync(Jimp.MIME_PNG);
 };
 
 function convertData(geoCoords, geoPoints, pxPerDeg, width, height) {
@@ -253,7 +319,7 @@ function parseMethodArgs(methodArgs) {
   if (Object.keys(methodArgs).includes("kernel")) {
     const kernel = exports.kernels[methodArgs.kernel];
     if (Object.keys(methodArgs).includes("kernelArgs")) {
-      methodArgs.kernelArgs = fillDefaults(
+      methodArgs.kernelArgs = fillKernelDefaults(
         methodArgs.kernelArgs,
         DEFAULT_KERNEL_ARGS
       );
@@ -265,85 +331,20 @@ function parseMethodArgs(methodArgs) {
   return args;
 }
 
-function fillDefaults(item, defaults) {
+function fillKernelDefaults(item, defaults) {
   return Object.entries(defaults).reduce((acc, [key, value]) => {
     acc[key] = item[key] || value;
     return acc;
   }, {});
-  return args;
 }
 
 /* FUNCTIONS */
-function interpolateData(
-  points,
-  width,
-  height,
-  kernel,
-  method,
-  methodArgs = null
-) {
-  if (!(kernel in exports.kernels))
-    throw new Error(
-      `${kernel} not listed. Chose one of ${Object.keys(exports.kernels)}`
-    );
-  if (!(method in exports.methods))
-    throw new Error(
-      `${method} not listed. Chose one of ${Object.keys(exports.methods)}`
-    );
-  points.forEach((item) => {
-    item.kernelArgs = fillDefaults(item, DEFAULT_KERNEL_ARGS);
-  });
-
-  let heatData = [];
-  for (let y = 0; y < height; y++) {
-    let row = [];
-    for (let x = 0; x < width; x++) {
-      const intensities = points.map((item) => {
-        item.r = euclideanDistance(x, y, item.px, item.py);
-        item.w = exports.kernels[kernel](item.r, item.kernelArgs);
-        return item;
-      });
-      const value = exports.methods[method](intensities, methodArgs);
-      row.push(value);
-    }
-    heatData.push(row);
-  }
-  return heatData;
-}
-
 function euclideanDistanceSquared(x, y, px, py) {
   return Math.pow(x - px, 2) + Math.pow(y - py, 2);
 }
 
 function euclideanDistance(x, y, px, py) {
   return Math.sqrt(euclideanDistanceSquared(x, y, px, py));
-}
-
-function drawHeatData(heatData, canvas, colors) {
-  const width = canvas.width;
-  const height = canvas.height;
-  const ctx = canvas.getContext("2d");
-  const colormap = buildColormap(colors);
-  let imgData = ctx.createImageData(width, height);
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      let cIndex = Math.round(heatData[y][x] * colormap.length);
-      cIndex =
-        cIndex < 0
-          ? 0
-          : cIndex >= colormap.length
-          ? colormap.length - 1
-          : cIndex;
-      const color = colormap[cIndex];
-      imgData.data[i + 0] = color[0];
-      imgData.data[i + 1] = color[1];
-      imgData.data[i + 2] = color[2];
-      imgData.data[i + 3] = 255;
-    }
-  }
-  ctx.putImageData(imgData, 0, 0);
 }
 
 function buildColormap(colors) {
@@ -413,18 +414,17 @@ function hexToRgbNorm(hex) {
 const degreesToRadians = (degrees) => (degrees * Math.PI) / 180;
 const radiansToDegrees = (radians) => (radians * 180) / Math.PI;
 
-function clipImg(canvas, cropPolygon) {
-  const ctx = canvas.getContext("2d");
-  const dataURL = canvas.toDataURL("image/png");
-  const image = new Image();
-  image.src = dataURL;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.beginPath();
-  ctx.moveTo(cropPolygon[0][0], cropPolygon[0][1]);
-  cropPolygon.forEach((item) => ctx.lineTo(...item));
-  ctx.fill();
-  ctx.clip();
-  ctx.drawImage(image, 0, 0);
+function clipImg(image, cropPolygon) {
+  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function (
+    x,
+    y,
+    idx
+  ) {
+    if (!pointInPolygon(cropPolygon, [x, y])) {
+      this.bitmap.data[idx + 3] = 0;
+    }
+  });
+  return image;
 }
 
 /* KERNELS */
@@ -438,6 +438,10 @@ function exponentialKernel(r, { epsilon }) {
 
 function linearKernel(r, { epsilon }) {
   return polynomialKernel(r, { epsilon, degree: 1 });
+}
+
+function sigmoidBorderKernel(r, { radius, epsilon, sigma }) {
+  return (1 + sigma) / (1 + Math.exp(epsilon * (r - radius)));
 }
 
 function polynomialKernel(r, { epsilon, degree }) {
@@ -461,25 +465,27 @@ function bumpKernel(r, { radius }) {
 }
 
 /* METHODS */
-function sumMethod(points) {
-  return points.reduce((acc, item) => acc + item.value * item.w, 0);
+function sumMethod(intensities) {
+  return intensities.reduce((acc, item) => acc + item.value * item.w, 0);
 }
 
-function maxMethod(points) {
-  return Math.max(...points.map((item) => item.value * item.w).concat([0]));
+function maxMethod(intensities) {
+  return Math.max(
+    ...intensities.map((item) => item.value * item.w).concat([0])
+  );
 }
 
-function nearestMethod(points) {
-  const item = points.reduce((acc, item) => {
+function nearestMethod(intensities) {
+  const item = intensities.reduce((acc, item) => {
     return item.r <= acc.r && item.w > 0 ? item : acc;
   });
   return item.value * item.w;
 }
 
-function shepardsMethod(points, { kernel }) {
+function shepardsMethod(intensities, { kernel }) {
   let sigmaWs = 0;
   return (
-    points
+    intensities
       .map((item) => {
         item.ws = kernel(item.r);
         sigmaWs += item.ws;
@@ -491,9 +497,29 @@ function shepardsMethod(points, { kernel }) {
   );
 }
 
+function alphaShepardsMethod(intensities, { kernel }) {
+  let sigmaWs = 0;
+  return (
+    intensities
+      .map((item) => {
+        item.ws = kernel(item.r);
+        sigmaWs += item.ws;
+        return item;
+      })
+      .reduce(
+        (acc, item) => {
+          acc.value = acc.value + (item.value * item.ws) / sigmaWs;
+          acc.confidence = acc.confidence > item.w ? acc.confidence : item.w;
+          return acc;
+        },
+        { value: 0, confidence: 0 }
+      ) || { value: 0, confidence: 0 }
+  );
+}
+
 /* GEO KERNELS */
 const EARTH_MEAN_RADIUS = 6371000;
-function metersTosigma(radius, height, geoCoords, gaussianBorderValue = 0.2) {
+function metersToSigma(radius, height, geoCoords, gaussianBorderValue = 0.2) {
   /*
    * Convert radius (in meters) to the sigma parameter for the gaussian
    * kernel.
@@ -505,14 +531,22 @@ function metersTosigma(radius, height, geoCoords, gaussianBorderValue = 0.2) {
    * gaussianBorderValue: intensity of the gaussian function considered
    *    as the border of the gaussian
    */
-  const lats = geoCoords.map((item) => degreesToRadians(item.lat));
-  const y0 = Math.min(...lats),
-    y1 = Math.max(...lats);
-  const dy = haversine(EARTH_MEAN_RADIUS, 0, 0, y0, y1);
-  const pxPerMeter = height / dy;
-  const pxRadius = pxPerMeter * radius;
+  const pxRadius = metersToPixels(radius, height, geoCoords);
   const sigma = gaussianRadiusToSigma(pxRadius, gaussianBorderValue);
   return sigma;
+}
+
+function metersToPixels(radius, height, geoCoords) {
+  const dy = latToMeters(geoCoords);
+  const pxPerMeter = height / dy;
+  return pxPerMeter * radius;
+}
+
+function latToMeters(geoCoords) {
+  const lats = geoCoords.map((item) => degreesToRadians(item.lat));
+  const y0 = Math.min(...lats);
+  const y1 = Math.max(...lats);
+  return haversine(EARTH_MEAN_RADIUS, 0, 0, y0, y1);
 }
 
 function gaussianRadiusToSigma(radius, value) {
@@ -538,4 +572,25 @@ function haversine(r, f1, f2, l1, l2) {
       )
     )
   );
+}
+
+function pointInPolygon(polygon, point) {
+  /*
+   * Performs the even-odd-rule Algorithm (a raycasting algorithm) to
+   * find out whether a point is in a given polygon.
+   * This runs in O(n) where n is the number of edges of the polygon:
+   * https://www.algorithms-and-technologies.com/point_in_polygon/javascript
+   */
+  let odd = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i++) {
+    if (
+      polygon[i][1] > point[1] !== polygon[j][1] > point[1] &&
+      point[0] <
+        ((polygon[j][0] - polygon[i][0]) * (point[1] - polygon[i][1])) /
+          (polygon[j][1] - polygon[i][1]) +
+          polygon[i][0]
+    )
+      odd = !odd;
+  }
+  return odd;
 }

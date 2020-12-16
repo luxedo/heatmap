@@ -32,20 +32,20 @@ const args = require("yargs")
   .option("geo", {
     alias: "g",
     type: "boolean",
-    description: "Receives input as geographic data"
+    description: "Receives input as geographic data",
   })
   .option("input", {
     alias: "i",
     type: "string",
-    description: "Input json file with the configurations"
+    description: "Input json file with the configurations",
   })
   .option("output", {
     alias: "o",
     type: "string",
-    description: "Output png file"
+    description: "Output png file",
   })
   .option("", {
-    description: "Receives input from stdin and outputs to stdout"
+    description: "Receives input from stdin and outputs to stdout",
   }).epilog(`Example:
 echo '{"points": [{"px": 10, "py": 10, "value": 1, "sigma": 30}, 
   {"px": 120, "py": 30, "value": 0.6, "sigma": 50}, 
