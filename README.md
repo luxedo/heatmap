@@ -17,20 +17,20 @@ const points = [
     px: 10,
     py: 10,
     value: 1,
-    sigma: 30
+    5igma: 30,
   },
   {
     px: 120,
     py: 30,
     value: 0.6,
-    sigma: 50
+    sigma: 50,
   },
   {
     px: 70,
     py: 130,
     value: 0.2,
-    sigma: 70
-  }
+    sigma: 70,
+  },
 ];
 const width = 150;
 const height = 150;
@@ -50,32 +50,32 @@ Returns an object with the `Buffer` (buf) of a `png` image of the heatmap, the n
 const geoCoords = [
   {
     lat: 0.0,
-    lng: 0.0
+    lng: 0.0,
   },
   {
     lat: 0.3,
-    lng: 0.3
-  }
+    lng: 0.3,
+  },
 ];
 const geoPoints = [
   {
     lat: 0.1,
     lng: 0.1,
     value: 1,
-    sigma: 40
+    sigma: 40,
   },
   {
     lat: 0.1,
     lng: 0.2,
     value: 0.6,
-    sigma: 40
+    sigma: 40,
   },
   {
     lat: 0.15,
     lng: 0.2,
     value: 0.2,
-    sigma: 100
-  }
+    sigma: 100,
+  },
 ];
 const pxPerDeg = 500;
 const method = "max";
@@ -220,10 +220,11 @@ There are 8 kernels used as [Radial Basis Functions](https://en.wikipedia.org/wi
 ##### arguments:
 
 - `radius`: Radius in pixels
-- `epsilon`: Softness of the border 
-- `sigma`: Scaling factor 
+- `epsilon`: Softness of the border
+- `sigma`: Scaling factor
 
 ## Geo Kernels
+
 Geo Kernels are meant to add consistency for geographical data heatmaps
 by using more intuitive arguments and scaling the kernels correctly.
 These kernels are avaliable only for `drawGeoHeatMap`:
@@ -239,17 +240,17 @@ These kernels are avaliable only for `drawGeoHeatMap`:
 ##### arguments:
 
 - `radius`: Radius in meters
-- `epsilon`: Softness of the border 
-- `sigma`: Scaling factor 
+- `epsilon`: Softness of the border
+- `sigma`: Scaling factor
 
 ## Methods
 
-There are 4 methods for accumulating the values of the points:
+There are 5 methods for accumulating the values of the points:
 
-| []()                                 |                                          |                                           |                                      |
-| ------------------------------------ | ---------------------------------------- | ----------------------------------------- | ------------------------------------ |
-| **max**                              | **nearest**                              | **shepards**                              | **sum**                              |
-| ![bump kernel](doc/examples/max.png) | ![bump kernel](doc/examples/nearest.png) | ![bump kernel](doc/examples/shepards.png) | ![bump kernel](doc/examples/sum.png) |
+| []()                                |                                             |                                               |                                     |                                                         |
+| ----------------------------------- | ------------------------------------------- | --------------------------------------------- | ----------------------------------- | ------------------------------------------------------- |
+| **max**                             | **nearest**                                 | **shepards**                                  | **sum**                             | **alphaShepards**                                       |
+| ![max method](doc/examples/max.png) | ![nearest method](doc/examples/nearest.png) | ![shepards method](doc/examples/shepards.png) | ![sum method](doc/examples/sum.png) | ![alphaShepards method](doc/examples/alphaShepards.png) |
 
 ### max
 
@@ -262,6 +263,10 @@ Gets the value for the nearest point
 ### shepards
 
 Computes a weighted sum of the points using a kernel. The default value is polynomial degree 5.
+
+### alphaShepards
+
+Applies the `shepards` algoritm and also interpolates in the _alpha_ channel
 
 ##### arguments:
 
@@ -300,20 +305,20 @@ const points = [
     px: 10,
     py: 10,
     value: 1,
-    sigma: 30
+    sigma: 30,
   },
   {
     px: 120,
     py: 30,
     value: 0.6,
-    sigma: 50
+    sigma: 50,
   },
   {
     px: 70,
     py: 130,
     value: 0.2,
-    sigma: 70
-  }
+    sigma: 70,
+  },
 ];
 const width = 150;
 const height = 150;
@@ -321,7 +326,7 @@ const height = 150;
 let colors = {
   steps: 30,
   values: ["#111122", "#44AA11", "#DDDDFF"],
-  weights: [1, 2, 3]
+  weights: [1, 2, 3],
 };
 buf = heatmap.drawHeatmap({ points, width, height, colors });
 fs.writeFileSync("example4.png", buf);
@@ -346,21 +351,21 @@ fs.writeFileSync("example4.png", buf);
 
 ## License
 
-> @luxedo/heatmap - Creates heatmaps from latitude and longitude data 
+> @luxedo/heatmap - Creates heatmaps from latitude and longitude data
 > MIT License
-> 
+>
 > Copyright (c) 2020 [Luiz Eduardo Amaral](luizamaral306@gmail.com)
-> 
+>
 > Permission is hereby granted, free of charge, to any person obtaining a copy
 > of this software and associated documentation files (the "Software"), to deal
 > in the Software without restriction, including without limitation the rights
 > to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 > copies of the Software, and to permit persons to whom the Software is
 > furnished to do so, subject to the following conditions:
-> 
+>
 > The above copyright notice and this permission notice shall be included in all
 > copies or substantial portions of the Software.
-> 
+>
 > THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 > IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 > FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE

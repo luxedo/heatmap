@@ -34,6 +34,7 @@ const DEFAULT_METHOD_ARGS = {
   },
 };
 const DEFAULT_KERNEL_ARGS = {
+  alpha: 1,
   sigma: 150,
   epsilon: 0.005,
   degree: 2,
@@ -106,6 +107,7 @@ exports.methods = {
   max: maxMethod,
   nearest: nearestMethod,
   shepards: shepardsMethod, // IDW
+  alphaShepards: alphaShepardsMethod, // IDW
 };
 
 /* FUNCTION EXPORTS */
@@ -120,7 +122,6 @@ exports.drawGeoHeatmap = async ({
   kernel = null,
   method = null,
   methodArgs = null,
-  alpha = false,
 }) => {
   const { cropPolygon, points, cWidth, cHeight, origin, end } = convertData(
     geoCoords,
@@ -157,7 +158,6 @@ exports.drawGeoHeatmap = async ({
     kernel,
     method,
     methodArgs,
-    alpha,
   });
 
   const lats = geoCoords.map((item) => item.lat);
@@ -187,7 +187,6 @@ exports.drawHeatmap = async ({
   kernel = null,
   method = null,
   methodArgs = null,
-  alpha = false,
 }) => {
   if (colors == null) colors = DEFAULT_COLORS;
   if (kernel == null) kernel = DEFAULT_KERNEL;
@@ -216,40 +215,41 @@ exports.drawHeatmap = async ({
 
   let image = new Jimp(width, height, 0xffffffff, function (err, image) {});
   if (points.length > 0) {
-    let heatData = [];
-    for (let y = 0; y < height; y++) {
-      let row = [];
-      for (let x = 0; x < width; x++) {
-        const intensities = points.map((item) => {
-          item.r = euclideanDistance(x, y, item.px, item.py);
-          item.alpha = exports.kernels[kernel](item.r, item.kernelArgs);
-          return item;
-        });
-        const value = exports.methods[method](intensities, methodArgs);
-        row.push(value);
-      }
-      heatData.push(row);
-    }
     const colormap = buildColormap(colors);
     image.scan(0, 0, width, height, function (x, y, idx) {
-      let cIndex = Math.round(heatData[y][x][0] * colormap.length);
-      let alpha = Math.round(heatData[y][x][1] * 255);
-      alpha = alpha > 255 ? 255 : alpha;
-      cIndex =
-        cIndex < 0
+      if (cropPolygon && !pointInPolygon(cropPolygon, [x, y])) {
+        this.bitmap.data[idx + 3] = 0;
+        return;
+      }
+      const intensities = points.map((item) => {
+        const r = euclideanDistance(x, y, item.px, item.py);
+        const w = exports.kernels[kernel](r, item.kernelArgs);
+        return {
+          r,
+          w,
+          value: item.value,
+        };
+      });
+      let value = exports.methods[method](intensities, methodArgs);
+      let confidence = 255;
+      if (!(typeof value === "number" && isFinite(value))) {
+        confidence = value.confidence;
+        value = value.value;
+        confidence *= 255;
+        confidence = confidence > 255 ? 255 : confidence;
+      }
+      let colorIndex = Math.round(value * colormap.length);
+      colorIndex =
+        colorIndex < 0
           ? 0
-          : cIndex >= colormap.length
+          : colorIndex >= colormap.length
           ? colormap.length - 1
-          : cIndex;
-      const color = colormap[cIndex];
+          : colorIndex;
+      const color = colormap[colorIndex];
       this.bitmap.data[idx + 0] = color[0];
       this.bitmap.data[idx + 1] = color[1];
       this.bitmap.data[idx + 2] = color[2];
-      if (cropPolygon == null) this.bitmap.data[idx + 3] = alpha;
-      else {
-        if (!pointInPolygon(cropPolygon, [x, y])) this.bitmap.data[idx + 3] = 0;
-        else this.bitmap.data[idx + 3] = alpha;
-      }
+      this.bitmap.data[idx + 3] = confidence;
     });
   }
   return await image.getBufferAsync(Jimp.MIME_PNG);
@@ -336,48 +336,9 @@ function fillKernelDefaults(item, defaults) {
     acc[key] = item[key] || value;
     return acc;
   }, {});
-  return args;
 }
 
 /* FUNCTIONS */
-function interpolateData(
-  points,
-  width,
-  height,
-  kernel,
-  method,
-  methodArgs = null,
-  alpha = false
-) {
-  if (!(kernel in exports.kernels))
-    throw new Error(
-      `${kernel} not listed. Chose one of ${Object.keys(exports.kernels)}`
-    );
-  if (!(method in exports.methods))
-    throw new Error(
-      `${method} not listed. Chose one of ${Object.keys(exports.methods)}`
-    );
-  points.forEach((item) => {
-    item.kernelArgs = fillKernelDefaults(item, DEFAULT_KERNEL_ARGS);
-  });
-
-  let heatData = [];
-  for (let y = 0; y < height; y++) {
-    let row = [];
-    for (let x = 0; x < width; x++) {
-      const intensities = points.map((item) => {
-        item.r = euclideanDistance(x, y, item.px, item.py);
-        item.alpha = exports.kernels[kernel](item.r, item.kernelArgs);
-        return item;
-      });
-      const value = exports.methods[method](intensities, methodArgs);
-      row.push(value);
-    }
-    heatData.push(row);
-  }
-  return heatData;
-}
-
 function euclideanDistanceSquared(x, y, px, py) {
   return Math.pow(x - px, 2) + Math.pow(y - py, 2);
 }
@@ -504,40 +465,42 @@ function bumpKernel(r, { radius }) {
 }
 
 /* METHODS */
-function sumMethod(points) {
-  return points.reduce(
-    (acc, item) => {
-      acc[0] = acc[0] + item.value * item.alpha;
-      acc[1] = acc[1] + item.alpha;
-      acc[0] = acc[0] > 1 ? 1 : acc[0];
-      acc[1] = acc[1] > 1 ? 1 : acc[1];
-      return acc;
-    },
-    [0, 0]
+function sumMethod(intensities) {
+  return intensities.reduce((acc, item) => acc + item.value * item.w, 0);
+}
+
+function maxMethod(intensities) {
+  return Math.max(
+    ...intensities.map((item) => item.value * item.w).concat([0])
   );
 }
 
-function maxMethod(points) {
-  const item = points.reduce(
-    (acc, item) => {
-      return item.value > acc.value && item.alpha > 0 ? item : acc;
-    },
-    { value: 0, alpha: 0 }
-  );
-  return [item.value, 1];
-}
-
-function nearestMethod(points) {
-  const item = points.reduce((acc, item) => {
-    return item.r <= acc.r ? item : acc;
+function nearestMethod(intensities) {
+  const item = intensities.reduce((acc, item) => {
+    return item.r <= acc.r && item.w > 0 ? item : acc;
   });
-  return [item.value, item.alpha];
+  return item.value * item.w;
 }
 
-function shepardsMethod(points, { kernel }) {
+function shepardsMethod(intensities, { kernel }) {
   let sigmaWs = 0;
   return (
-    points
+    intensities
+      .map((item) => {
+        item.ws = kernel(item.r);
+        sigmaWs += item.ws;
+        return item;
+      })
+      .reduce((acc, item) => {
+        return acc + (item.value * item.w * item.ws) / sigmaWs;
+      }, 0) || 0
+  );
+}
+
+function alphaShepardsMethod(intensities, { kernel }) {
+  let sigmaWs = 0;
+  return (
+    intensities
       .map((item) => {
         item.ws = kernel(item.r);
         sigmaWs += item.ws;
@@ -545,13 +508,12 @@ function shepardsMethod(points, { kernel }) {
       })
       .reduce(
         (acc, item) => {
-          acc[0] = acc[0] + (item.value * item.ws) / sigmaWs;
-          // acc[1] = acc[1] + (item.alpha * item.ws) / sigmaWs;
-          acc[1] = acc[1] > item.alpha ? acc[1] : item.alpha;
+          acc.value = acc.value + (item.value * item.ws) / sigmaWs;
+          acc.confidence = acc.confidence > item.w ? acc.confidence : item.w;
           return acc;
         },
-        [0, 0]
-      ) || [0, 0]
+        { value: 0, confidence: 0 }
+      ) || { value: 0, confidence: 0 }
   );
 }
 
@@ -614,28 +576,21 @@ function haversine(r, f1, f2, l1, l2) {
 
 function pointInPolygon(polygon, point) {
   /*
-   * Performs the even-odd-rule Algorithm (a raycasting algorithm) to find out whether a point is in a given polygon.
+   * Performs the even-odd-rule Algorithm (a raycasting algorithm) to
+   * find out whether a point is in a given polygon.
    * This runs in O(n) where n is the number of edges of the polygon:
    * https://www.algorithms-and-technologies.com/point_in_polygon/javascript
    */
-  //A point is in a polygon if a line from the point to infinity crosses the polygon an odd number of times
   let odd = false;
-  //For each edge (In this case for each point of the polygon and the previous one)
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; i++) {
-    //If a line from the point into infinity crosses this edge
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i++) {
     if (
-      polygon[i][1] > point[1] !== polygon[j][1] > point[1] && // One point needs to be above, one below our y coordinate
-      // ...and the edge doesn't cross our Y corrdinate before our x coordinate (but between our x coordinate and infinity)
+      polygon[i][1] > point[1] !== polygon[j][1] > point[1] &&
       point[0] <
         ((polygon[j][0] - polygon[i][0]) * (point[1] - polygon[i][1])) /
           (polygon[j][1] - polygon[i][1]) +
           polygon[i][0]
-    ) {
-      // Invert odd
+    )
       odd = !odd;
-    }
-    j = i;
   }
-  //If the number of crossings was odd, the point is in the polygon
   return odd;
 }
