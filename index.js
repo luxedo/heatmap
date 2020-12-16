@@ -99,6 +99,7 @@ exports.kernels = {
   dampedCosine: dampedCosineKernel,
   step: stepKernel,
   bump: bumpKernel,
+  sigmoidBorder: sigmoidBorderKernel,
 };
 exports.methods = {
   sum: sumMethod,
@@ -119,6 +120,7 @@ exports.drawGeoHeatmap = async ({
   kernel = null,
   method = null,
   methodArgs = null,
+  alpha = false,
 }) => {
   const { cropPolygon, points, cWidth, cHeight, origin, end } = convertData(
     geoCoords,
@@ -134,7 +136,15 @@ exports.drawGeoHeatmap = async ({
   if (kernel == "geoGaussian") {
     kernel = "gaussian";
     geoPoints = geoPoints.map((item) => {
-      item.sigma = metersTosigma(item.radius || 100, height, geoCoords);
+      item.sigma = metersToSigma(item.radius || 100, height, geoCoords);
+      return item;
+    });
+  } else if (kernel == "geoSigmoidBorder") {
+    kernel = "sigmoidBorder";
+    geoPoints = geoPoints.map((item) => {
+      const pxRadius = metersToPixels(item.radius || 100, height, geoCoords);
+      item.epsilon *= item.radius / pxRadius;
+      item.radius = pxRadius;
       return item;
     });
   }
@@ -147,11 +157,24 @@ exports.drawGeoHeatmap = async ({
     kernel,
     method,
     methodArgs,
+    alpha,
   });
+
+  const lats = geoCoords.map((item) => item.lat);
+  const y0 = Math.min(...lats);
+  const y1 = Math.max(...lats);
+  const heightM = latToMeters(geoCoords);
+  const heightPx = height;
+  const heightDeg = y1 - y0;
   return {
     buf,
     origin,
     end,
+    height: {
+      heightM,
+      heightPx,
+      heightDeg,
+    },
   };
 };
 
@@ -164,6 +187,7 @@ exports.drawHeatmap = async ({
   kernel = null,
   method = null,
   methodArgs = null,
+  alpha = false,
 }) => {
   if (colors == null) colors = DEFAULT_COLORS;
   if (kernel == null) kernel = DEFAULT_KERNEL;
@@ -177,22 +201,57 @@ exports.drawHeatmap = async ({
     throw new Error(
       "You must provide all of the following arguments to drawHeatmap: points, width, height."
     );
-
+  if (!(kernel in exports.kernels))
+    throw new Error(
+      `${kernel} not listed. Chose one of ${Object.keys(exports.kernels)}`
+    );
+  if (!(method in exports.methods))
+    throw new Error(
+      `${method} not listed. Chose one of ${Object.keys(exports.methods)}`
+    );
+  points.forEach((item) => {
+    item.kernelArgs = fillKernelDefaults(item, DEFAULT_KERNEL_ARGS);
+  });
   methodArgs = parseMethodArgs(methodArgs);
-  const heatData = interpolateData(
-    points,
-    width,
-    height,
-    kernel,
-    method,
-    methodArgs
-  );
+
   let image = new Jimp(width, height, 0xffffffff, function (err, image) {});
-
   if (points.length > 0) {
-    image = drawHeatData(heatData, image, colors, cropPolygon);
+    let heatData = [];
+    for (let y = 0; y < height; y++) {
+      let row = [];
+      for (let x = 0; x < width; x++) {
+        const intensities = points.map((item) => {
+          item.r = euclideanDistance(x, y, item.px, item.py);
+          item.alpha = exports.kernels[kernel](item.r, item.kernelArgs);
+          return item;
+        });
+        const value = exports.methods[method](intensities, methodArgs);
+        row.push(value);
+      }
+      heatData.push(row);
+    }
+    const colormap = buildColormap(colors);
+    image.scan(0, 0, width, height, function (x, y, idx) {
+      let cIndex = Math.round(heatData[y][x][0] * colormap.length);
+      let alpha = Math.round(heatData[y][x][1] * 255);
+      alpha = alpha > 255 ? 255 : alpha;
+      cIndex =
+        cIndex < 0
+          ? 0
+          : cIndex >= colormap.length
+          ? colormap.length - 1
+          : cIndex;
+      const color = colormap[cIndex];
+      this.bitmap.data[idx + 0] = color[0];
+      this.bitmap.data[idx + 1] = color[1];
+      this.bitmap.data[idx + 2] = color[2];
+      if (cropPolygon == null) this.bitmap.data[idx + 3] = alpha;
+      else {
+        if (!pointInPolygon(cropPolygon, [x, y])) this.bitmap.data[idx + 3] = 0;
+        else this.bitmap.data[idx + 3] = alpha;
+      }
+    });
   }
-
   return await image.getBufferAsync(Jimp.MIME_PNG);
 };
 
@@ -260,7 +319,7 @@ function parseMethodArgs(methodArgs) {
   if (Object.keys(methodArgs).includes("kernel")) {
     const kernel = exports.kernels[methodArgs.kernel];
     if (Object.keys(methodArgs).includes("kernelArgs")) {
-      methodArgs.kernelArgs = fillDefaults(
+      methodArgs.kernelArgs = fillKernelDefaults(
         methodArgs.kernelArgs,
         DEFAULT_KERNEL_ARGS
       );
@@ -272,7 +331,7 @@ function parseMethodArgs(methodArgs) {
   return args;
 }
 
-function fillDefaults(item, defaults) {
+function fillKernelDefaults(item, defaults) {
   return Object.entries(defaults).reduce((acc, [key, value]) => {
     acc[key] = item[key] || value;
     return acc;
@@ -287,7 +346,8 @@ function interpolateData(
   height,
   kernel,
   method,
-  methodArgs = null
+  methodArgs = null,
+  alpha = false
 ) {
   if (!(kernel in exports.kernels))
     throw new Error(
@@ -298,7 +358,7 @@ function interpolateData(
       `${method} not listed. Chose one of ${Object.keys(exports.methods)}`
     );
   points.forEach((item) => {
-    item.kernelArgs = fillDefaults(item, DEFAULT_KERNEL_ARGS);
+    item.kernelArgs = fillKernelDefaults(item, DEFAULT_KERNEL_ARGS);
   });
 
   let heatData = [];
@@ -324,32 +384,6 @@ function euclideanDistanceSquared(x, y, px, py) {
 
 function euclideanDistance(x, y, px, py) {
   return Math.sqrt(euclideanDistanceSquared(x, y, px, py));
-}
-
-function drawHeatData(heatData, image, colors, cropPolygon) {
-  const width = image.bitmap.width;
-  const height = image.bitmap.height;
-  const colormap = buildColormap(colors);
-  image.scan(0, 0, image.bitmap.width, image.bitmap.height, function (
-    x,
-    y,
-    idx
-  ) {
-    let cIndex = Math.round(heatData[y][x][0] * colormap.length);
-    let alpha = Math.round(heatData[y][x][1] * 255);
-    cIndex =
-      cIndex < 0 ? 0 : cIndex >= colormap.length ? colormap.length - 1 : cIndex;
-    const color = colormap[cIndex];
-    this.bitmap.data[idx + 0] = color[0];
-    this.bitmap.data[idx + 1] = color[1];
-    this.bitmap.data[idx + 2] = color[2];
-    if (cropPolygon == null) this.bitmap.data[idx + 3] = alpha;
-    else {
-      if (!pointInPolygon(cropPolygon, [x, y])) this.bitmap.data[idx + 3] = 0;
-      else this.bitmap.data[idx + 3] = alpha;
-    }
-  });
-  return image;
 }
 
 function buildColormap(colors) {
@@ -445,6 +479,10 @@ function linearKernel(r, { epsilon }) {
   return polynomialKernel(r, { epsilon, degree: 1 });
 }
 
+function sigmoidBorderKernel(r, { radius, epsilon, sigma }) {
+  return (1 + sigma) / (1 + Math.exp(epsilon * (r - radius)));
+}
+
 function polynomialKernel(r, { epsilon, degree }) {
   return 1 / (1 + Math.pow(r * epsilon, degree));
 }
@@ -508,17 +546,18 @@ function shepardsMethod(points, { kernel }) {
       .reduce(
         (acc, item) => {
           acc[0] = acc[0] + (item.value * item.ws) / sigmaWs;
-          acc[1] = acc[1] + (item.alpha * item.ws) / sigmaWs;
+          // acc[1] = acc[1] + (item.alpha * item.ws) / sigmaWs;
+          acc[1] = acc[1] > item.alpha ? acc[1] : item.alpha;
           return acc;
         },
         [0, 0]
-      ) || 0
+      ) || [0, 0]
   );
 }
 
 /* GEO KERNELS */
 const EARTH_MEAN_RADIUS = 6371000;
-function metersTosigma(radius, height, geoCoords, gaussianBorderValue = 0.2) {
+function metersToSigma(radius, height, geoCoords, gaussianBorderValue = 0.2) {
   /*
    * Convert radius (in meters) to the sigma parameter for the gaussian
    * kernel.
@@ -530,14 +569,22 @@ function metersTosigma(radius, height, geoCoords, gaussianBorderValue = 0.2) {
    * gaussianBorderValue: intensity of the gaussian function considered
    *    as the border of the gaussian
    */
-  const lats = geoCoords.map((item) => degreesToRadians(item.lat));
-  const y0 = Math.min(...lats),
-    y1 = Math.max(...lats);
-  const dy = haversine(EARTH_MEAN_RADIUS, 0, 0, y0, y1);
-  const pxPerMeter = height / dy;
-  const pxRadius = pxPerMeter * radius;
+  const pxRadius = metersToPixels(radius, height, geoCoords);
   const sigma = gaussianRadiusToSigma(pxRadius, gaussianBorderValue);
   return sigma;
+}
+
+function metersToPixels(radius, height, geoCoords) {
+  const dy = latToMeters(geoCoords);
+  const pxPerMeter = height / dy;
+  return pxPerMeter * radius;
+}
+
+function latToMeters(geoCoords) {
+  const lats = geoCoords.map((item) => degreesToRadians(item.lat));
+  const y0 = Math.min(...lats);
+  const y1 = Math.max(...lats);
+  return haversine(EARTH_MEAN_RADIUS, 0, 0, y0, y1);
 }
 
 function gaussianRadiusToSigma(radius, value) {

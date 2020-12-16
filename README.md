@@ -215,6 +215,14 @@ There are 8 kernels used as [Radial Basis Functions](https://en.wikipedia.org/wi
 
 - `radius`: Radius of the step
 
+### sigmoidBorder
+
+##### arguments:
+
+- `radius`: Radius in pixels
+- `epsilon`: Softness of the border 
+- `sigma`: Scaling factor 
+
 ## Geo Kernels
 Geo Kernels are meant to add consistency for geographical data heatmaps
 by using more intuitive arguments and scaling the kernels correctly.
@@ -226,6 +234,13 @@ These kernels are avaliable only for `drawGeoHeatMap`:
 
 - `radius`: Radius of the gaussian in meters
 
+### geoSigmoidBorder
+
+##### arguments:
+
+- `radius`: Radius in meters
+- `epsilon`: Softness of the border 
+- `sigma`: Scaling factor 
 
 ## Methods
 
