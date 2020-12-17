@@ -508,8 +508,8 @@ function alphaShepardsMethod(intensities, { kernel }) {
       })
       .reduce(
         (acc, item) => {
-          acc.value = acc.value + (item.value * item.ws) / sigmaWs;
-          acc.confidence = acc.confidence > item.w ? acc.confidence : item.w;
+          acc.value += (item.value * item.ws) / sigmaWs;
+          acc.confidence += (item.w * item.ws) / sigmaWs;
           return acc;
         },
         { value: 0, confidence: 0 }
